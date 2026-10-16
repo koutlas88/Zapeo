@@ -336,7 +336,8 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
         <button class="btn sm" type="button" data-pre="10">10 s</button>
         <button class="btn sm" type="button" data-pre="15">15 s</button>
       </div></div>
-    <div class="advrow"><span>Perseguir el directo (saltar para acercarse)</span><button class="btn sm" type="button" id="btnChase"></button></div>
+    <div class="advrow"><span>Acercarse al directo yendo un poco más rápido</span><button class="btn sm" type="button" id="btnSoft"></button></div>
+    <div class="advrow"><span>Perseguir el directo con saltos (provoca cortes)</span><button class="btn sm" type="button" id="btnChase"></button></div>
     <div class="advrow"><span>Panel de diagnóstico sobre la imagen</span><button class="btn sm" type="button" id="btnDiag"></button></div>
   </div>
   <p class="ver">Zapeo <span id="ver"></span></p>
@@ -2696,7 +2697,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.7";
+const VERSION = "0.8";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3274,7 +3275,8 @@ let adv = store.get("zapeo.adv", "") === "1";
 // Ajustes de reproducción (se cambian en «Mis listas» con el modo avanzado)
 const cfg = {
   pre: [3, 6, 10, 15].includes(+store.get("zapeo.pre", "6")) ? +store.get("zapeo.pre", "6") : 6, // segundos guardados antes de empezar un directo
-  chase: store.get("zapeo.chase", "1") !== "0", // la librería salta hacia delante para acercarse al directo
+  chase: store.get("zapeo.chase", "0") === "1", // la librería salta hacia delante para acercarse al directo (provoca cortes: apagado por defecto)
+  soft: store.get("zapeo.soft", "1") !== "0", // acercarse al directo yendo un 5 % más rápido, sin saltos
   diag: store.get("zapeo.diag", "0") === "1",
 };
 const reLive = () => Math.max(2, Math.round(cfg.pre * 0.66)); // colchón al recuperarse de un corte
@@ -3282,6 +3284,8 @@ function renderAdv() {
   $$("#segPre [data-pre]").forEach((b) => b.classList.toggle("on", +b.dataset.pre === cfg.pre));
   $("#btnChase").textContent = cfg.chase ? "Sí" : "No";
   $("#btnChase").classList.toggle("on", cfg.chase);
+  $("#btnSoft").textContent = cfg.soft ? "Sí" : "No";
+  $("#btnSoft").classList.toggle("on", cfg.soft);
   $("#btnDiag").textContent = cfg.diag ? "Sí" : "No";
   $("#btnDiag").classList.toggle("on", cfg.diag);
 }
@@ -3290,6 +3294,7 @@ $("#advBox").addEventListener("click", (e) => {
   if (!b) return;
   if (b.dataset.pre) { cfg.pre = +b.dataset.pre; store.set("zapeo.pre", String(cfg.pre)); }
   else if (b.id === "btnChase") { cfg.chase = !cfg.chase; store.set("zapeo.chase", cfg.chase ? "1" : "0"); }
+  else if (b.id === "btnSoft") { cfg.soft = !cfg.soft; store.set("zapeo.soft", cfg.soft ? "1" : "0"); }
   else if (b.id === "btnDiag") { cfg.diag = !cfg.diag; store.set("zapeo.diag", cfg.diag ? "1" : "0"); updateDiag(); }
   renderAdv();
 });
@@ -3654,7 +3659,7 @@ function aheadSec() {
   const i = b.length - 1;
   return b.end(i) - Math.max(video.currentTime, b.start(i));
 }
-function holdUntilBuffered(target, maxMs) {
+function holdUntilBuffered(target, maxMs, trim) {
   clearInterval(preTimer);
   const my = token, s = session, run = s && s.run, t0 = Date.now();
   video.pause();
@@ -3663,12 +3668,20 @@ function holdUntilBuffered(target, maxMs) {
     const a = aheadSec(), waited = Date.now() - t0;
     if (a >= target || (waited >= maxMs && a > 0.3) || waited >= maxMs + 6000) {
       clearInterval(preTimer);
+      // Aún no se ve imagen: si ha llegado una ráfaga de vídeo, se empieza cerca del directo, sin que se note ningún salto
+      if (trim && video.buffered.length) {
+        const i = video.buffered.length - 1, end = video.buffered.end(i);
+        if (end - Math.max(video.currentTime, video.buffered.start(i)) > target + 2) {
+          dg.skip = true;
+          try { video.currentTime = end - target; } catch { dg.skip = false; }
+        }
+      }
       video.play().catch(() => {});
     }
   }, 150);
 }
 
-const dg = { seeks: 0, jump: 0, lastCT: 0 };
+const dg = { seeks: 0, jump: 0, lastCT: 0, skip: false };
 function updateDiag() {
   const el = $("#diag");
   if (!cfg.diag || !state.current || !session) { el.hidden = true; return; }
@@ -3681,13 +3694,29 @@ function updateDiag() {
     "Velocidad: " + video.playbackRate.toFixed(2) + "x",
     "Saltos: " + dg.seeks + (dg.seeks ? "  último: " + (dg.jump >= 0 ? "+" : "") + dg.jump.toFixed(1) + " s" : ""),
     "Reconexiones: " + session.recoveries,
-    "Perseguir directo: " + (cfg.chase ? "sí" : "no"),
+    "Ajuste suave: " + (cfg.soft ? "sí" : "no") + " · Perseguir con saltos: " + (cfg.chase ? "sí" : "no"),
   ].join("\n");
   el.hidden = false;
 }
 setInterval(updateDiag, 500);
 video.addEventListener("timeupdate", () => { dg.lastCT = video.currentTime; });
-video.addEventListener("seeking", () => { dg.seeks++; dg.jump = video.currentTime - dg.lastCT; });
+video.addEventListener("seeking", () => {
+  if (dg.skip) { dg.skip = false; return; } // el recorte inicial no cuenta como salto
+  dg.seeks++;
+  dg.jump = video.currentTime - dg.lastCT;
+});
+
+// Si el retraso respecto al directo crece, la imagen va un 5 % más rápida hasta volver al colchón elegido (sin saltos).
+function softCatchUp() {
+  const s = session;
+  if (!s || !s.live) return;
+  const slow = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
+  if (!cfg.soft || !s.ok || video.paused || video.seeking) { slow(); return; }
+  const a = aheadSec(), hi = Math.max(cfg.pre * 2, cfg.pre + 6);
+  if (a < 2 || a <= cfg.pre + 1.5) slow();
+  else if (a > hi && video.playbackRate === 1) video.playbackRate = 1.05;
+}
+setInterval(softCatchUp, 1000);
 
 function stopPlayer() {
   clearInterval(watch);
@@ -3769,6 +3798,7 @@ function buildPlan(u) {
 function playChannel(c, list) {
   skHide(true);
   dg.seeks = 0; dg.jump = 0;
+  video.playbackRate = 1;
   stopPlayer();
   token++;
   state.current = c;
@@ -3826,7 +3856,7 @@ function runMethod() {
     hls = new Hls(HLS_CFG);
     hls.loadSource(u);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000); else video.play().catch(() => {}); });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000, true); else video.play().catch(() => {}); });
     hls.on(Hls.Events.ERROR, (_e, d) => {
       if (!d.fatal) return;
       if (d.type === Hls.ErrorTypes.NETWORK_ERROR && retries < 2) { retries++; hls.startLoad(); return; }
@@ -3840,7 +3870,7 @@ function runMethod() {
     mp.on(mpegts.Events.ERROR, (type, detail, info) =>
       fail(type + "/" + detail + (info && info.code ? " " + info.code : "") + (info && info.msg ? " " + info.msg : "")));
     mp.load();
-    if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000);
+    if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000, true);
     else { const p = mp.play(); if (p && p.catch) p.catch(() => {}); }
   } else {
     video.src = u;
