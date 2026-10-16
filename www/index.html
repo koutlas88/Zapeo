@@ -224,6 +224,19 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
 #seekPlayed { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,.45); border-radius: 6px; width: 0; }
 #seekFill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 6px; width: 0; }
 #seekThumb { position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px var(--accent); left: 0; }
+#diag {
+  position: absolute; right: 0; top: 0; z-index: 6; margin: 10px; padding: 8px 12px; border-radius: 6px;
+  background: rgba(0,0,0,.72); color: #bfeedd; font: 13px/1.4 ui-monospace, Consolas, monospace; white-space: pre; pointer-events: none;
+}
+.screen.paused::after {
+  content: "⏸"; position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 4;
+  width: 130px; height: 130px; border-radius: 50%; background: rgba(0,0,0,.5); color: #fff; font-size: 70px;
+  display: grid; place-items: center; pointer-events: none;
+}
+.advt { margin: 14px 0 4px; color: var(--muted); font-size: 13px; }
+.advrow { display: flex; align-items: center; gap: 10px; margin: 6px 0; flex-wrap: wrap; }
+.advrow > span { flex: 1 1 180px; }
+.seg { display: flex; gap: 6px; }
 .seekbtns { display: flex; justify-content: center; gap: 12px; margin-top: 14px; }
 
 @media (max-width: 900px) {
@@ -271,6 +284,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
     <div class="screen" id="screen">
       <video id="video" playsinline controls></video>
       <div id="osd"><div class="num"></div><div class="name"></div><div class="grpname"></div></div>
+      <div id="diag" hidden></div>
       <div id="seek" hidden>
         <div class="seekinfo"><span id="seekCur">0:00</span><span id="seekHint"></span><span id="seekTot">0:00</span></div>
         <div id="seekBar" tabindex="-1"><div id="seekPlayed"></div><div id="seekFill"></div><div id="seekThumb"></div></div>
@@ -312,6 +326,18 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
     <label class="btn" for="file" tabindex="0" id="fileLabel">Desde archivo</label>
     <button class="btn" type="button" id="btnPaste">Pegar texto</button>
     <button class="btn primary" type="button" id="btnCloseLists">Cerrar</button>
+  </div>
+  <div id="advBox" hidden>
+    <p class="advt">Ajustes avanzados (se aplican al cambiar de canal)</p>
+    <div class="advrow"><span>Colchón de directos</span>
+      <div class="seg" id="segPre">
+        <button class="btn sm" type="button" data-pre="3">3 s</button>
+        <button class="btn sm" type="button" data-pre="6">6 s</button>
+        <button class="btn sm" type="button" data-pre="10">10 s</button>
+        <button class="btn sm" type="button" data-pre="15">15 s</button>
+      </div></div>
+    <div class="advrow"><span>Perseguir el directo (saltar para acercarse)</span><button class="btn sm" type="button" id="btnChase"></button></div>
+    <div class="advrow"><span>Panel de diagnóstico sobre la imagen</span><button class="btn sm" type="button" id="btnDiag"></button></div>
   </div>
   <p class="ver">Zapeo <span id="ver"></span></p>
 </dialog>
@@ -2670,7 +2696,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.6";
+const VERSION = "0.7";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3245,12 +3271,36 @@ $("#pasteOk").addEventListener("click", async () => {
 /* ---------- Modo avanzado (oculto) ---------- */
 // Sin buzón configurado (copia de Windows, pruebas) se muestran siempre todas las opciones.
 let adv = store.get("zapeo.adv", "") === "1";
+// Ajustes de reproducción (se cambian en «Mis listas» con el modo avanzado)
+const cfg = {
+  pre: [3, 6, 10, 15].includes(+store.get("zapeo.pre", "6")) ? +store.get("zapeo.pre", "6") : 6, // segundos guardados antes de empezar un directo
+  chase: store.get("zapeo.chase", "1") !== "0", // la librería salta hacia delante para acercarse al directo
+  diag: store.get("zapeo.diag", "0") === "1",
+};
+const reLive = () => Math.max(2, Math.round(cfg.pre * 0.66)); // colchón al recuperarse de un corte
+function renderAdv() {
+  $$("#segPre [data-pre]").forEach((b) => b.classList.toggle("on", +b.dataset.pre === cfg.pre));
+  $("#btnChase").textContent = cfg.chase ? "Sí" : "No";
+  $("#btnChase").classList.toggle("on", cfg.chase);
+  $("#btnDiag").textContent = cfg.diag ? "Sí" : "No";
+  $("#btnDiag").classList.toggle("on", cfg.diag);
+}
+$("#advBox").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.pre) { cfg.pre = +b.dataset.pre; store.set("zapeo.pre", String(cfg.pre)); }
+  else if (b.id === "btnChase") { cfg.chase = !cfg.chase; store.set("zapeo.chase", cfg.chase ? "1" : "0"); }
+  else if (b.id === "btnDiag") { cfg.diag = !cfg.diag; store.set("zapeo.diag", cfg.diag ? "1" : "0"); updateDiag(); }
+  renderAdv();
+});
 const advOn = () => adv || !String(window.ZAPEO_MAILBOX || "").trim();
 function applyAdv() {
   const on = advOn();
   ["#btnAddList", "#fileLabel", "#btnPaste"].forEach((q) => { $(q).hidden = !on; });
   $("#rxDlg").classList.toggle("simple", !on);
   $("#rxTitle").textContent = on ? "Recibir lista desde el móvil" : "Recibir lista";
+  $("#advBox").hidden = !on;
+  renderAdv();
 }
 function toast(text) {
   const host = $$("dialog[open]").pop() || (isFs() ? $("#screen") : document.body);
@@ -3424,6 +3474,9 @@ function renderAll() {
   renderTabs();
   renderGroups();
   renderList();
+  // si al repintar se pierde el foco, se devuelve a la lista
+  const a = document.activeElement;
+  if ((!a || a === document.body) && !$("dialog[open]") && !isFs()) focusChannelList();
 }
 
 function renderTabs() {
@@ -3576,7 +3629,9 @@ const video = $("#video");
 let hls = null, mp = null, osdTimer = null, token = 0, session = null, watch = null;
 
 // Buffer: pequeño en directo (arranca rápido y gasta poca memoria), mayor en películas.
-const PRE_LIVE = 3; // segundos que se guardan antes de empezar un directo
+function mpegtsCfg() {
+  return { ...MPEGTS_CFG, liveBufferLatencyChasing: cfg.chase, liveBufferLatencyMaxLatency: Math.max(12, cfg.pre + 8), liveBufferLatencyMinRemain: 3 };
+}
 const HLS_CFG = { enableWorker: true, maxBufferLength: 30, maxMaxBufferLength: 60, maxBufferSize: 30 * 1000 * 1000, backBufferLength: 20 };
 const MPEGTS_CFG = {
   enableWorker: true, enableStashBuffer: true, stashInitialSize: 384,
@@ -3612,6 +3667,27 @@ function holdUntilBuffered(target, maxMs) {
     }
   }, 150);
 }
+
+const dg = { seeks: 0, jump: 0, lastCT: 0 };
+function updateDiag() {
+  const el = $("#diag");
+  if (!cfg.diag || !state.current || !session) { el.hidden = true; return; }
+  const q = video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality() : null;
+  const m = session.plan[Math.min(session.i, session.plan.length - 1)];
+  el.textContent = [
+    "Método: " + m + (session.live ? " (directo)" : ""),
+    "Colchón: " + aheadSec().toFixed(1) + " s" + (session.live ? "  (objetivo " + cfg.pre + ")" : ""),
+    "Imágenes descartadas: " + (q ? q.droppedVideoFrames + " de " + q.totalVideoFrames : "—"),
+    "Velocidad: " + video.playbackRate.toFixed(2) + "x",
+    "Saltos: " + dg.seeks + (dg.seeks ? "  último: " + (dg.jump >= 0 ? "+" : "") + dg.jump.toFixed(1) + " s" : ""),
+    "Reconexiones: " + session.recoveries,
+    "Perseguir directo: " + (cfg.chase ? "sí" : "no"),
+  ].join("\n");
+  el.hidden = false;
+}
+setInterval(updateDiag, 500);
+video.addEventListener("timeupdate", () => { dg.lastCT = video.currentTime; });
+video.addEventListener("seeking", () => { dg.seeks++; dg.jump = video.currentTime - dg.lastCT; });
 
 function stopPlayer() {
   clearInterval(watch);
@@ -3691,7 +3767,8 @@ function buildPlan(u) {
 }
 
 function playChannel(c, list) {
-  skHide();
+  skHide(true);
+  dg.seeks = 0; dg.jump = 0;
   stopPlayer();
   token++;
   state.current = c;
@@ -3731,7 +3808,8 @@ function runMethod() {
   };
   s.fail = fail;
   if (!s.ok) {
-    watchdog = setTimeout(() => fail("sin respuesta en 20 s"), 20000);
+    const wd = 20 + (s.live ? cfg.pre : 0);
+    watchdog = setTimeout(() => fail("sin respuesta en " + wd + " s"), wd * 1000);
     video.addEventListener("playing", () => clearTimeout(watchdog), { once: true });
   }
   if (s.resumeAt > 1) {
@@ -3748,7 +3826,7 @@ function runMethod() {
     hls = new Hls(HLS_CFG);
     hls.loadSource(u);
     hls.attachMedia(video);
-    hls.on(Hls.Events.MANIFEST_PARSED, () => { if (s.live) holdUntilBuffered(PRE_LIVE, 7000); else video.play().catch(() => {}); });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000); else video.play().catch(() => {}); });
     hls.on(Hls.Events.ERROR, (_e, d) => {
       if (!d.fatal) return;
       if (d.type === Hls.ErrorTypes.NETWORK_ERROR && retries < 2) { retries++; hls.startLoad(); return; }
@@ -3757,12 +3835,12 @@ function runMethod() {
     });
   } else if (method === "mpegts") {
     if (!(window.mpegts && mpegts.isSupported())) return fail("mpegts.js no disponible");
-    mp = mpegts.createPlayer({ type: u.split("?")[0].toLowerCase().endsWith(".flv") ? "flv" : "mpegts", isLive: true, url: u }, MPEGTS_CFG);
+    mp = mpegts.createPlayer({ type: u.split("?")[0].toLowerCase().endsWith(".flv") ? "flv" : "mpegts", isLive: true, url: u }, mpegtsCfg());
     mp.attachMediaElement(video);
     mp.on(mpegts.Events.ERROR, (type, detail, info) =>
       fail(type + "/" + detail + (info && info.code ? " " + info.code : "") + (info && info.msg ? " " + info.msg : "")));
     mp.load();
-    if (s.live) holdUntilBuffered(PRE_LIVE, 7000);
+    if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000);
     else { const p = mp.play(); if (p && p.catch) p.catch(() => {}); }
   } else {
     video.src = u;
@@ -3818,7 +3896,7 @@ video.addEventListener("waiting", () => {
   const s = session;
   if (!s || !s.ok || !s.live || video.seeking || aheadSec() > 1.5) return;
   setStatus("Cargando…");
-  holdUntilBuffered(2, 5000);
+  holdUntilBuffered(reLive(), reLive() * 1000 + 3000);
 });
 video.addEventListener("waiting", () => { if (state.current && session && !session.ok && !$("#status").textContent.startsWith("Reconectando")) setStatus("Cargando…"); });
 video.addEventListener("error", () => { if (session) session.fail(videoErr()); });
@@ -3876,7 +3954,17 @@ function skShow(mode) {
   $("#seek").hidden = false;
   skUpdate();
 }
-function skHide() {
+const isVodPlaying = () => !!(state.current && state.current.type !== "live" && session && session.ok);
+function pauseUI() {
+  const paused = video.paused && !video.ended && !video.seeking && isVodPlaying();
+  $("#screen").classList.toggle("paused", paused);
+  if (paused && isFs()) { clearTimeout(sk.hideT); if (!sk.mode) skShow("peek"); skUpdate(); }
+  else if (!paused && sk.mode === "peek" && sk.pending === null) skAutoHide(1200);
+}
+video.addEventListener("pause", pauseUI);
+video.addEventListener("play", pauseUI);
+
+function skHide(final) {
   clearTimeout(sk.applyT);
   clearTimeout(sk.hideT);
   sk.mode = "";
@@ -3887,9 +3975,11 @@ function skHide() {
   const a = document.activeElement;
   if (a && $("#seek").contains(a)) a.blur();
   $("#seek").hidden = true;
+  if (!final && isFs() && video.paused && !video.ended && isVodPlaying()) skShow("peek"); // en pausa la barra se queda a la vista
 }
 function skAutoHide(ms) {
   clearTimeout(sk.hideT);
+  if (video.paused && sk.mode === "peek" && isVodPlaying()) return;
   sk.hideT = setTimeout(skHide, ms);
 }
 function skApply() {
@@ -3979,6 +4069,7 @@ function updateFsBtn() {
   $("#btnFs").textContent = isFs() ? "Salir de pantalla completa" : "Pantalla completa";
 }
 function toggleFs() {
+  if (isFs()) skHide(true);
   if (isNative()) {
     document.body.classList.toggle("pfs");
     updateFsBtn();
@@ -4045,7 +4136,7 @@ $("#btnFs").addEventListener("click", toggleFs);
 video.addEventListener("dblclick", toggleFs);
 document.addEventListener("fullscreenchange", () => {
   updateFsBtn();
-  if (!document.fullscreenElement) focusChannelList(); // al salir, vuelves al elemento que estabas viendo
+  if (!document.fullscreenElement) { skHide(true); focusChannelList(); } // al salir, vuelves al elemento que estabas viendo
 });
 
 /* ---------- Teclado / mando ---------- */
@@ -4116,7 +4207,7 @@ document.addEventListener("keydown", (e) => {
     const series = state.current && state.current.type === "series";
     if (key === "Backspace" || (key === "Escape" && isNative())) {
       e.preventDefault();
-      if (sk.mode) skHide(); else toggleFs(); // primero se cierra la barra
+      if (sk.mode === "bar") skHide(); else toggleFs(); // primero se cierra la barra
       return;
     }
     if (vod && sk.mode === "bar") {
@@ -4144,16 +4235,28 @@ document.addEventListener("keydown", (e) => {
     if (vod && (key === "ChannelUp" || key === "ChannelDown" || key === "PageUp" || key === "PageDown")) { e.preventDefault(); return; }
     if (key === "ArrowUp" || key === "PageUp" || key === "ChannelUp") { e.preventDefault(); zap(-1); }
     else if (key === "ArrowDown" || key === "PageDown" || key === "ChannelDown") { e.preventDefault(); zap(1); }
-    else if (key === " ") { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+    else if (key === " " || key === "MediaPlayPause") { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+    else if (key === "MediaPlay") { e.preventDefault(); video.play(); }
+    else if (key === "MediaPause") { e.preventDefault(); video.pause(); }
     else if (key === "Enter") {
-      showOSD();
       if (session && !session.ok && $("#status").classList.contains("err") && !$("#status").hidden) {
         e.preventDefault();
         playChannel(state.current, state.playlist); // reintentar tras un aviso de error
-      }
+      } else if (vod && isVodPlaying()) {
+        e.preventDefault();
+        video.paused ? video.play() : video.pause(); // botón central: pausa / reanuda en películas y series
+      } else showOSD();
     }
     else if (key.toLowerCase() === "m") { video.muted = !video.muted; }
     else if (key.toLowerCase() === "f") { toggleFav(favTarget(state.current)); showOSD(); }
+    return;
+  }
+
+  // Sin nada seleccionado (por ejemplo mientras carga la lista) las flechas llevan a la lista
+  const ae = document.activeElement;
+  if ((!ae || ae === document.body || ae === document.documentElement) && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) {
+    e.preventDefault();
+    focusEl(document.querySelector("#chlist .row.playing .ch") || document.querySelector("#chlist .ch") || document.querySelector("#chlist .btn") || document.querySelector(".tab.active"));
     return;
   }
 
@@ -4265,7 +4368,7 @@ window.addEventListener("load", () => {
     if (open) { open.close(); return; }
     const a = document.activeElement;
     const cl = a && a.classList;
-    if (sk.mode) skHide();
+    if (sk.mode === "bar") skHide();
     else if (isFs()) toggleFs();
     else if (state.show) closeShow();
     else if (cl && (cl.contains("ch") || cl.contains("more"))) focusGroup();
