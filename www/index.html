@@ -155,6 +155,17 @@ video { width: 100%; height: 100%; display: block; background: #000; }
   padding: 24px; color: #cfd9e6; pointer-events: none; white-space: pre-line; overflow: auto;
 }
 #status.err { color: var(--danger); }
+#status.load { background: #000; }
+#status .ld { display: grid; gap: 10px; justify-items: center; }
+#status .ld b { font-size: 26px; font-weight: 600; color: #fff; max-width: 80vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#status .ld small { font-size: 18px; color: #9fb0c4; }
+.spin { width: 44px; height: 44px; border: 4px solid rgba(255,255,255,.2); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.prog { display: block; height: 4px; margin-top: 4px; background: rgba(255,255,255,.15); border-radius: 2px; overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--accent); }
+.meta small.seen { color: var(--accent); }
+.histrow { margin: 8px 0 0; }
+#resumeDlg p { margin: 0 0 6px; color: var(--muted); }
 #status[hidden] { display: none; }
 .now { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .now .t { flex: 1 1 200px; min-width: 0; }
@@ -320,6 +331,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
       <button class="btn primary" type="submit" id="lfSave">Guardar</button>
     </div>
   </form>
+  <div class="histrow" id="histRow"><button class="btn sm" type="button" id="btnClearHist">Borrar historial</button></div>
   <div class="actions wrap" id="listsActions">
     <button class="btn" type="button" id="btnAddList">+ Añadir con URL</button>
     <button class="btn" type="button" id="btnReceive" hidden>Recibir lista</button>
@@ -367,6 +379,15 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
   <div class="actions" id="rxActions">
     <button class="btn" type="button" id="rxNew">Código nuevo</button>
     <button class="btn primary" type="button" id="rxClose">Cancelar</button>
+  </div>
+</dialog>
+
+<dialog id="resumeDlg">
+  <h3>Ya empezaste esto</h3>
+  <p id="rsName"></p>
+  <div class="actions">
+    <button class="btn primary" type="button" id="rsCont">Continuar</button>
+    <button class="btn" type="button" id="rsNew">Empezar de nuevo</button>
   </div>
 </dialog>
 
@@ -2697,7 +2718,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.9";
+const VERSION = "0.10";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3157,6 +3178,7 @@ function openListsDlg(showForm) {
   $("#ver").textContent = VERSION;
   hideListForm();
   renderLists();
+  updateClrBtn();
   const dlg = $("#listsDlg");
   if (!dlg.open) dlg.showModal();
   if (showForm) openListForm(null);
@@ -3175,6 +3197,7 @@ function openListForm(id) {
   $("#lfUrlWrap").hidden = !showUrl;
   $("#listForm").hidden = false;
   $("#listsActions").hidden = true;
+  $("#histRow").hidden = true;
   $("#listsBox").hidden = true;
   focusEl($("#lfName"));
 }
@@ -3182,6 +3205,7 @@ function hideListForm() {
   editingId = null;
   $("#listForm").hidden = true;
   $("#listsActions").hidden = false;
+  $("#histRow").hidden = false;
   $("#listsBox").hidden = false;
 }
 
@@ -3462,7 +3486,8 @@ $("#rxAccept").addEventListener("click", async () => {
 function filtered() {
   let list = state.byType[state.tab];
   const g = state.group[state.tab];
-  if (g === "__fav") list = list.filter((x) => state.favs.has(favKey(x)));
+  if (g === "__cont") list = contList(state.tab);
+  else if (g === "__fav") list = list.filter((x) => state.favs.has(favKey(x)));
   else if (g !== "__all") list = list.filter((x) => x.group === g);
   if (state.query) { const q = norm(state.query); list = list.filter((x) => nm(x).includes(q)); }
   return list;
@@ -3499,7 +3524,9 @@ function renderGroups() {
     (a) => (a.classList && a.classList.contains("grp") ? `.grp[data-g="${CSS.escape(a.dataset.g)}"]` : null),
     () => {
       const t = state.tab;
+      const nc = contList(t).length;
       const items = [
+        ...(nc ? [{ key: "__cont", name: "▶ Continuar viendo", n: nc }] : []),
         { key: "__all", name: "Todos", n: state.byType[t].length },
         { key: "__fav", name: "★ Favoritos", n: state.byType[t].filter((x) => state.favs.has(favKey(x))).length },
         ...state.groups[t].map((g) => ({ key: g.name, name: g.name, n: g.n })),
@@ -3536,8 +3563,14 @@ function rowHTML(x, i) {
     sub = x.group;
   }
   const fav = state.favs.has(favKey(x));
+  const pr = progInfo(x, state.group[state.tab] === "__cont" && !state.show);
+  let bar = "";
+  if (pr) {
+    sub = state.show ? pr.text : x.kind === "show" ? pr.text : pr.text + " · " + sub;
+    if (pr.pct > 0 && pr.pct < 100) bar = `<span class="prog"><i style="width:${pr.pct.toFixed(1)}%"></i></span>`;
+  }
   return `<div class="row${isPlaying(x) ? " playing" : ""}">
-    <button class="ch" data-i="${i}"><span class="logo">${logoHTML(x, name)}</span><span class="meta"><b>${esc(name)}</b><small>${esc(sub)}</small></span></button>
+    <button class="ch" data-i="${i}"><span class="logo">${logoHTML(x, name)}</span><span class="meta"><b>${esc(name)}</b><small>${esc(sub)}</small>${bar}</span></button>
     ${star ? `<button class="star${fav ? " on" : ""}" data-star="${i}" tabindex="-1" aria-label="Favorito">${fav ? "★" : "☆"}</button>` : ""}
   </div>`;
 }
@@ -3583,12 +3616,13 @@ function renderList() {
 
       const list = (state.view = filtered());
       const g = state.group[state.tab];
-      const label = g === "__all" ? TAB_NAMES[state.tab] : g === "__fav" ? "Favoritos" : g;
+      const label = g === "__all" ? TAB_NAMES[state.tab] : g === "__fav" ? "Favoritos" : g === "__cont" ? "Continuar viendo" : g;
       $("#chTitle").textContent = `${label} · ${list.length}`;
 
       if (!list.length) {
         box.innerHTML = `<p class="hint">${
-          g === "__fav" ? "Aún no tienes favoritos aquí. Pulsa F sobre un elemento."
+          g === "__cont" ? "No tienes nada a medias."
+          : g === "__fav" ? "Aún no tienes favoritos aquí. Pulsa F sobre un elemento."
           : state.query ? "Sin resultados."
           : "Esta lista no tiene contenido de este tipo."}</p>`;
         return;
@@ -3616,7 +3650,7 @@ function openShow(s) {
   state.show = s;
   renderList();
   $("#chlist").scrollTop = 0;
-  focusEl(document.querySelector('.ch[data-i="0"]'));
+  focusEl(document.querySelector(`.ch[data-i="${nextIndex(s)}"]`) || document.querySelector('.ch[data-i="0"]'));
 }
 
 function closeShow() {
@@ -3644,6 +3678,12 @@ const MPEGTS_CFG = {
   autoCleanupSourceBuffer: true, autoCleanupMaxBackwardDuration: 30, autoCleanupMinBackwardDuration: 15,
 };
 
+function setLoading(title, sub) {
+  const s = $("#status");
+  s.hidden = false;
+  s.className = "load";
+  s.innerHTML = `<div class="ld"><div class="spin"></div><b>${esc(title)}</b><small>${esc(sub)}</small></div>`;
+}
 function setStatus(text, isErr) {
   const s = $("#status");
   s.hidden = !text;
@@ -3737,6 +3777,7 @@ function stopPlayer() {
 }
 
 function stopPlayback() {
+  histTouch();
   token++;
   stopPlayer();
   session = null;
@@ -3803,7 +3844,8 @@ function buildPlan(u) {
   return { ext: ext || "sin extensión", plan: ["mpegts", "native"] };
 }
 
-function playChannel(c, list) {
+function playChannel(c, list, at) {
+  histTouch();
   skHide(true);
   dg.seeks = 0; dg.jump = 0;
   video.playbackRate = 1;
@@ -3811,7 +3853,7 @@ function playChannel(c, list) {
   token++;
   state.current = c;
   if (list) state.playlist = list;
-  setStatus("Cargando…");
+  setLoading(displayName(c), c.type === "live" ? "Entrando…" : "Cargando…");
   $("#nowName").textContent = displayName(c);
   $("#nowGroup").textContent = c.group;
   updateFavBtn();
@@ -3821,7 +3863,7 @@ function playChannel(c, list) {
   if (cur) cur.parentElement.classList.add("playing");
 
   const { ext, plan } = buildPlan(c.url);
-  session = { c, plan, ext, i: 0, errors: [], token, ok: false, run: 0, recoveries: 0, resumeAt: 0, live: c.type === "live", fail: () => {} };
+  session = { c, plan, ext, i: 0, errors: [], token, ok: false, run: 0, recoveries: 0, resumeAt: at > 1 ? at : 0, live: c.type === "live", fail: () => {} };
   runMethod();
 }
 
@@ -3861,7 +3903,7 @@ function runMethod() {
       return fail("hls.js no disponible");
     }
     let retries = 0;
-    hls = new Hls(HLS_CFG);
+    hls = new Hls(s.resumeAt > 1 ? { ...HLS_CFG, startPosition: s.resumeAt } : HLS_CFG);
     hls.loadSource(u);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000, true); else video.play().catch(() => {}); });
@@ -3899,7 +3941,8 @@ function recover(why) {
   }
   s.recoveries++;
   s.resumeAt = s.live ? 0 : video.currentTime || s.resumeAt;
-  setStatus("Reconectando… (" + s.recoveries + "/" + max + ")");
+  setLoading(displayName(s.c), "Reconectando… (" + s.recoveries + "/" + max + ")");
+  s.recon = true;
   s.ok = false;
   runMethod();
 }
@@ -3926,6 +3969,7 @@ video.addEventListener("playing", () => {
   if (!session) return;
   const first = !session.ok;
   session.ok = true;
+  session.recon = false;
   setStatus("");
   if (first) startWatch();
 });
@@ -3933,10 +3977,10 @@ video.addEventListener("playing", () => {
 video.addEventListener("waiting", () => {
   const s = session;
   if (!s || !s.ok || !s.live || video.seeking || aheadSec() > 1.5) return;
-  setStatus("Cargando…");
+  setLoading(displayName(s.c), "Cargando…");
   holdUntilBuffered(reLive(), reLive() * 1000 + 3000);
 });
-video.addEventListener("waiting", () => { if (state.current && session && !session.ok && !$("#status").textContent.startsWith("Reconectando")) setStatus("Cargando…"); });
+video.addEventListener("waiting", () => { if (state.current && session && !session.ok && !session.recon && !$("#status").classList.contains("load") && !$("#status").classList.contains("err")) setLoading(displayName(session.c), "Cargando…"); });
 video.addEventListener("error", () => { if (session) session.fail(videoErr()); });
 
 // Al terminar un episodio, pasa al siguiente de la misma serie. Un directo que termina se reconecta.
@@ -3944,6 +3988,7 @@ video.addEventListener("ended", () => {
   const c = state.current;
   if (!c) return;
   if (c.type === "live") { recover("fin de emisión"); return; }
+  histTouch(true);
   if (c.type !== "series") return;
   const i = state.playlist.indexOf(c);
   if (i >= 0 && i < state.playlist.length - 1) playChannel(state.playlist[i + 1], state.playlist);
@@ -3955,6 +4000,169 @@ function zap(delta) {
   let i = state.current ? list.indexOf(state.current) : -1;
   i = i < 0 ? 0 : (i + delta + list.length) % list.length;
   playChannel(list[i], list);
+}
+
+/* ---------- Continuar viendo ---------- */
+// Se guarda solo en este aparato. La clave es una huella de la dirección (las direcciones llevan usuario y contraseña: nunca se guardan tal cual).
+const HIST_KEY = "zapeo.hist", HIST_MAX = 200, DONE_AT = 0.95, MIN_RESUME = 30;
+let hist = {};
+try { hist = JSON.parse(store.get(HIST_KEY, "{}")) || {}; } catch { hist = {}; }
+function hashUrl(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  str = "zapeo|" + str;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+const hid = (x) => x._h || (x._h = hashUrl(x.url));
+function histSave() {
+  const ks = Object.keys(hist);
+  if (ks.length > HIST_MAX) {
+    ks.sort((a, b) => hist[a].t - hist[b].t);
+    for (const k of ks.slice(0, ks.length - HIST_MAX)) delete hist[k];
+  }
+  store.set(HIST_KEY, JSON.stringify(hist));
+}
+let histLast = 0;
+function histTouch(final) {
+  const c = state.current;
+  if (!c || c.type === "live" || !session || !session.ok) return;
+  const d = video.duration, p = video.currentTime;
+  if (!isFinite(d) || d < 60 || !isFinite(p)) return;
+  const k = hid(c), old = hist[k];
+  const done = final || p / d >= DONE_AT;
+  if (old && old.v) { old.t = Date.now(); histSave(); return; } // lo ya visto sigue visto aunque se vuelva a ver
+  if (!done && p < 5) return; // al reanudar, durante un instante el vídeo está en 0
+  hist[k] = { p: done ? 0 : Math.floor(p), d: Math.floor(d), v: done ? 1 : 0, t: Date.now() };
+  histLast = Date.now();
+  histSave();
+}
+video.addEventListener("timeupdate", () => { if (Date.now() - histLast > 5000) { histLast = Date.now(); histTouch(); } });
+video.addEventListener("pause", () => histTouch());
+document.addEventListener("visibilitychange", () => { if (document.hidden) histTouch(); });
+window.addEventListener("pagehide", () => histTouch());
+
+let hIdx = null, hIdxFor = null;
+function histIndex() {
+  if (hIdx && hIdxFor === state.byType) return hIdx;
+  hIdx = new Map();
+  hIdxFor = state.byType;
+  for (const m of state.byType.movie) hIdx.set(hid(m), m);
+  for (const s of state.byType.series) for (const e of s.episodes) hIdx.set(hid(e), e);
+  return hIdx;
+}
+// Episodio que toca ver: el último que se tocó si está a medias; si estaba visto, el siguiente.
+function nextIndex(show) {
+  let last = -1, lt = -1;
+  show.episodes.forEach((e, i) => { const h = hist[hid(e)]; if (h && h.t > lt) { lt = h.t; last = i; } });
+  if (last < 0) return 0;
+  return hist[hid(show.episodes[last])].v ? Math.min(last + 1, show.episodes.length - 1) : last;
+}
+function contList(tab) {
+  if (tab === "live" || !Object.keys(hist).length) return [];
+  const idx = histIndex(), out = [];
+  if (tab === "movie") {
+    for (const k in hist) {
+      const e = hist[k], it = idx.get(k);
+      if (it && it.type === "movie" && !e.v && e.p >= MIN_RESUME) out.push([e.t, it]);
+    }
+  } else {
+    const best = new Map();
+    for (const k in hist) {
+      const e = hist[k], it = idx.get(k);
+      if (!it || !it._show) continue;
+      const cur = best.get(it._show);
+      if (!cur || e.t > cur.t) best.set(it._show, { t: e.t, e, it });
+    }
+    for (const [show, b] of best) {
+      if (b.e.v && show.episodes.indexOf(b.it) >= show.episodes.length - 1) continue; // terminada
+      out.push([b.t, show]);
+    }
+  }
+  return out.sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+}
+// Texto y barra de progreso de una fila
+function progInfo(x, inCont) {
+  if (x.kind === "show") {
+    if (!inCont) return null;
+    const ep = x.episodes[nextIndex(x)], h = hist[hid(ep)];
+    const tag = epTag(ep) || ep.epTitle || ep.name;
+    if (h && !h.v) return { text: tag + " · a medias " + fmtT(h.p), pct: h.d ? (h.p / h.d) * 100 : 0 };
+    return { text: "Siguiente: " + tag, pct: 0 };
+  }
+  if (x.type === "live") return null;
+  const h = hist[hid(x)];
+  if (!h) return state.show ? { text: "Sin ver", pct: 0, none: true } : null;
+  if (h.v) return { text: "✓ Visto", pct: 100 };
+  return { text: "A medias · " + fmtT(h.p) + (h.d ? " de " + fmtT(h.d) : ""), pct: h.d ? (h.p / h.d) * 100 : 0 };
+}
+function refreshProgress() {
+  if (isFs()) return;
+  renderGroups();
+  renderList();
+}
+function clearHist() {
+  hist = {};
+  store.del(HIST_KEY);
+  hIdx = null;
+  refreshProgress();
+}
+
+// Al abrir algo a medias se pregunta si seguir donde se quedó.
+function startItem(item, list, at) {
+  playChannel(item, list, at);
+  if (!isFs()) toggleFs(); // al elegir algo se ve directamente a pantalla completa
+}
+function openItem(item, list) {
+  const h = item.type !== "live" ? hist[hid(item)] : null;
+  if (h && !h.v && h.p >= MIN_RESUME) { askResume(item, list, h); return; }
+  startItem(item, list, 0);
+}
+let rsPending = null;
+function askResume(item, list, h) {
+  rsPending = { item, list, h };
+  $("#rsName").textContent = displayName(item);
+  $("#rsCont").textContent = "Continuar desde " + fmtT(h.p);
+  $("#resumeDlg").showModal();
+  focusEl($("#rsCont"));
+}
+$("#rsCont").addEventListener("click", () => {
+  const r = rsPending; rsPending = null;
+  $("#resumeDlg").close();
+  if (r) startItem(r.item, r.list, r.h.p);
+});
+$("#rsNew").addEventListener("click", () => {
+  const r = rsPending; rsPending = null;
+  $("#resumeDlg").close();
+  if (r) { delete hist[hid(r.item)]; histSave(); startItem(r.item, r.list, 0); }
+});
+$("#resumeDlg").addEventListener("close", () => { rsPending = null; });
+
+let clrTimer = null;
+$("#btnClearHist").addEventListener("click", () => {
+  const b = $("#btnClearHist");
+  if (!Object.keys(hist).length) { toast("No hay historial que borrar"); return; }
+  if (b.dataset.sure) {
+    clearTimeout(clrTimer);
+    delete b.dataset.sure;
+    clearHist();
+    updateClrBtn();
+    focusEl($("#btnCloseLists"));
+    toast("Historial borrado");
+  } else {
+    b.dataset.sure = "1";
+    b.textContent = "¿Seguro? Pulsa otra vez";
+    clrTimer = setTimeout(() => { delete b.dataset.sure; updateClrBtn(); }, 4000);
+  }
+});
+function updateClrBtn() {
+  const b = $("#btnClearHist"), n = Object.keys(hist).length;
+  b.textContent = "Borrar historial" + (n ? " (" + n + ")" : "");
 }
 
 /* ---------- Saltos y barra de reproducción (películas y series) ---------- */
@@ -4073,7 +4281,9 @@ function stepEpisode(delta) {
   const j = i + delta;
   if (i < 0 || j < 0 || j >= list.length) { toast(delta > 0 ? "Es el último episodio" : "Es el primer episodio"); return; }
   skHide();
-  playChannel(list[j], list);
+  const h = hist[hid(list[j])];
+  if (h && !h.v && h.p >= MIN_RESUME) { toast("Continuando desde " + fmtT(h.p)); playChannel(list[j], list, h.p); }
+  else playChannel(list[j], list);
 }
 $("#seekPrev").addEventListener("click", () => stepEpisode(-1));
 $("#seekNext").addEventListener("click", () => stepEpisode(1));
@@ -4112,7 +4322,7 @@ function toggleFs() {
     document.body.classList.toggle("pfs");
     updateFsBtn();
     if (isFs()) showOSD();
-    else focusChannelList();
+    else { refreshProgress(); focusChannelList(); }
     return;
   }
   const el = $("#screen");
@@ -4163,10 +4373,7 @@ $("#chlist").addEventListener("click", async (e) => {
   const item = state.view[+ch.dataset.i];
   if (!item) return;
   if (item.kind === "show") openShow(item);
-  else {
-    playChannel(item, state.view);
-    if (!isFs()) toggleFs(); // al elegir algo se ve directamente a pantalla completa
-  }
+  else openItem(item, state.view);
 });
 
 $("#btnFav").addEventListener("click", () => toggleFav(favTarget(state.current)));
@@ -4174,7 +4381,7 @@ $("#btnFs").addEventListener("click", toggleFs);
 video.addEventListener("dblclick", toggleFs);
 document.addEventListener("fullscreenchange", () => {
   updateFsBtn();
-  if (!document.fullscreenElement) { skHide(true); focusChannelList(); } // al salir, vuelves al elemento que estabas viendo
+  if (!document.fullscreenElement) { skHide(true); refreshProgress(); focusChannelList(); } // al salir, vuelves al elemento que estabas viendo
 });
 
 /* ---------- Teclado / mando ---------- */
