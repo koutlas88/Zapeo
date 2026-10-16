@@ -2697,7 +2697,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.8";
+const VERSION = "0.9";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3662,11 +3662,19 @@ function aheadSec() {
 function holdUntilBuffered(target, maxMs, trim) {
   clearInterval(preTimer);
   const my = token, s = session, run = s && s.run, t0 = Date.now();
+  const hist = []; // colchón de los últimos instantes, para saber si el servidor sigue mandando una ráfaga
+  let lastBurst = t0;
   video.pause();
   preTimer = setInterval(() => {
     if (my !== token || session !== s || run !== s.run) { clearInterval(preTimer); return; }
-    const a = aheadSec(), waited = Date.now() - t0;
-    if (a >= target || (waited >= maxMs && a > 0.3) || waited >= maxMs + 6000) {
+    const now = Date.now(), a = aheadSec(), waited = now - t0;
+    hist.push([now, a]);
+    while (hist.length > 2 && hist[1][0] <= now - 600) hist.shift();
+    // más de 1 s de vídeo nuevo en 0,6 s = llega más rápido que el tiempo real (ráfaga inicial)
+    if (hist.length > 1 && now - hist[0][0] >= 450 && a - hist[0][1] > 1) lastBurst = now;
+    // al recortar se espera a que la ráfaga termine, para decidir el punto de inicio con todo el vídeo ya llegado
+    const calm = !trim || now - lastBurst >= 700;
+    if ((a >= target && calm) || (waited >= maxMs && a > 0.3) || waited >= maxMs + 6000) {
       clearInterval(preTimer);
       // Aún no se ve imagen: si ha llegado una ráfaga de vídeo, se empieza cerca del directo, sin que se note ningún salto
       if (trim && video.buffered.length) {
