@@ -38,7 +38,23 @@ build_number = os.environ.get("BUILD_NUMBER", "1")
 gradle = root / "app" / "build.gradle"
 g = gradle.read_text(encoding="utf-8")
 g = re.sub(r"versionCode\s+\d+", "versionCode " + build_number, g, count=1)
-g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.3.' + build_number + '"', g, count=1)
+g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.7.' + build_number + '"', g, count=1)
+
+# 6) Firmar SIEMPRE con la misma llave (tv/debug.keystore), para poder actualizar sin desinstalar.
+#    Se declara en el propio proyecto: así no depende de dónde busque Gradle la llave en el servidor.
+signing = (
+    "    signingConfigs {\n"
+    "        debug {\n"
+    '            storeFile file("../../tv/debug.keystore")\n'
+    '            storePassword "android"\n'
+    '            keyAlias "androiddebugkey"\n'
+    '            keyPassword "android"\n'
+    "        }\n"
+    "    }\n"
+)
+if "signingConfigs" not in g:
+    assert "\nandroid {\n" in g, "No se encontró el bloque android { } en build.gradle"
+    g = g.replace("\nandroid {\n", "\nandroid {\n" + signing, 1)
 gradle.write_text(g, encoding="utf-8")
 
 print("Proyecto ajustado para Android TV, versión", build_number)
