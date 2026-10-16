@@ -17,12 +17,37 @@
   --danger: #ff7b7b;
   --font: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
   color-scheme: dark;
+  --accent-rgb: 53,208,176;
+  --bgimg: none;
+}
+/* Temas: cada uno solo cambia estas variables */
+html[data-theme="atardecer"] {
+  --bg: #140a24; --panel: #1d1033; --panel-2: #2a1a45; --line: #3b2a5c; --fg: #f5f0fb; --muted: #b3a4c9;
+  --accent: #c084fc; --accent-rgb: 192,132,252; --accent-ink: #1e0a33;
+  --bgimg: radial-gradient(900px 600px at 85% -10%, rgba(192,132,252,.30), transparent 60%), radial-gradient(800px 600px at -10% 110%, rgba(236,72,153,.26), transparent 60%), linear-gradient(160deg, #1a0b2e, #0f061c);
+}
+html[data-theme="aurora"] {
+  --bg: #0b1424; --panel: #111c2e; --panel-2: #192740; --line: #26364f; --fg: #eef4fb; --muted: #8fa3bd;
+  --accent: #2dd4a8; --accent-rgb: 45,212,168; --accent-ink: #04211b;
+  --bgimg: radial-gradient(900px 600px at 85% -10%, rgba(45,212,168,.28), transparent 60%), radial-gradient(800px 600px at -10% 110%, rgba(59,130,246,.26), transparent 60%), linear-gradient(160deg, #0b1424, #0a1020);
+}
+html[data-theme="oceano"] {
+  --bg: #06182b; --panel: #0a2440; --panel-2: #10325a; --line: #1c4670; --fg: #eaf6ff; --muted: #86aac9;
+  --accent: #38bdf8; --accent-rgb: 56,189,248; --accent-ink: #04202f;
+  --bgimg: radial-gradient(900px 600px at 50% 120%, rgba(56,189,248,.34), transparent 65%), linear-gradient(180deg, #06213a, #031325);
+}
+html[data-theme="grafito"] {
+  --bg: #0e1014; --panel: #171a20; --panel-2: #222730; --line: #333a46; --fg: #f1f2f4; --muted: #9aa1ad;
+  --accent: #f5d27a; --accent-rgb: 245,210,122; --accent-ink: #2a2005;
+  --bgimg: linear-gradient(160deg, #1b1f27, #0c0e12);
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body {
   background: var(--bg);
+  background-image: var(--bgimg);
+  background-attachment: fixed;
   color: var(--fg);
   font: 15px/1.4 var(--font);
   display: grid;
@@ -32,6 +57,62 @@ body {
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Pantallas de inicio y de ajustes (tamaños en em: se escalan con el ancho de la pantalla) */
+.ov {
+  position: fixed; inset: 0; z-index: 40; background-color: var(--bg); background-image: var(--bgimg);
+  font-size: max(8px, calc(100vw / 80)); padding: 2.5em 4em; display: flex; flex-direction: column; gap: 1.75em; overflow: hidden auto;
+}
+.ovtop { display: flex; align-items: center; justify-content: space-between; min-height: 3.5em; gap: 1em; }
+.logo2 { display: flex; align-items: center; gap: .85em; font-size: 2em; font-weight: 700; letter-spacing: .02em; }
+.logo2 svg { width: 1.4em; height: 1.4em; }
+.ovright { display: flex; align-items: center; gap: 1.5em; }
+.lst { display: flex; flex-direction: column; align-items: flex-end; }
+.lst b { font-size: 1.1em; font-weight: 600; max-width: 16em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lst small { font-size: .9em; color: var(--muted); }
+.roundbtn {
+  width: 3.25em; height: 3.25em; border-radius: 50%; display: grid; place-items: center; padding: 0;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
+}
+.roundbtn svg { width: 1.6em; height: 1.6em; }
+#homeClock { font-size: 2.5em; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ovhead { display: flex; align-items: center; gap: 1.1em; }
+.ovhead h1 { margin: 0; font-size: 2.25em; font-weight: 700; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5em; margin-top: .5em; }
+.tile {
+  min-height: 12.5em; border-radius: 1.4em; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8em; text-align: center; padding: 1em;
+  color: var(--fg); font-size: 1.6em; font-weight: 500; transition: transform .12s;
+}
+.tile svg { width: 2.6em; height: 2.6em; flex-shrink: 0; }
+.tile small { font-size: .55em; color: var(--muted); font-weight: 400; }
+.tile:focus-visible, .tile:focus, .card:focus .pic {
+  outline: none; border-color: var(--accent); background-color: rgba(var(--accent-rgb), .22);
+  box-shadow: 0 0 0 .4em rgba(var(--accent-rgb), .2), 0 1em 2.2em rgba(0,0,0,.45);
+}
+.tile:focus { border-width: 3px; transform: scale(1.04); font-weight: 600; }
+.stiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.4em; }
+.stiles .tile { flex-direction: row; justify-content: flex-start; gap: 1.2em; text-align: left; padding: 1.1em 1.6em; min-height: 8em; font-size: 1.5em; }
+.stiles .tile svg { width: 2.2em; height: 2.2em; }
+.stiles .tile span { display: flex; flex-direction: column; gap: .2em; }
+.stiles .tile small { font-size: .62em; }
+.shelf h2 { margin: 0 0 .6em; font-size: 1.35em; font-weight: 600; letter-spacing: .02em; text-transform: none; color: var(--fg); padding: 0; }
+.shelfrow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5em; }
+.card { display: flex; flex-direction: column; gap: .5em; background: none; border: 0; padding: 0; text-align: left; color: var(--fg); min-width: 0; }
+.card:focus { outline: none; }
+.card .pic { position: relative; height: 7em; border-radius: .8em; overflow: hidden; border: 2px solid transparent; }
+.card .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.card .pic b { position: absolute; left: .7em; right: .7em; bottom: 1em; font-size: 1.1em; font-weight: 600; text-shadow: 0 1px 6px rgba(0,0,0,.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .bar { position: absolute; left: 0; right: 0; bottom: 0; height: .3em; background: rgba(255,255,255,.25); }
+.card .bar i { display: block; height: 100%; background: var(--accent); }
+.card small { font-size: .9em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hints { margin-top: auto; display: flex; gap: 1.75em; color: var(--muted); font-size: .95em; }
+.hints kbd { font: inherit; padding: .1em .6em; border-radius: .4em; border: 1px solid rgba(255,255,255,.25); margin-right: .4em; }
+.themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 6px 0 12px; }
+.themeopt { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); text-align: left; }
+.themeopt .sw { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--sw2); flex-shrink: 0; }
+.themeopt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.themeopt b { font-weight: 600; }
 
 /* Barra superior */
 .top {
@@ -164,7 +245,6 @@ video { width: 100%; height: 100%; display: block; background: #000; }
 .prog { display: block; height: 4px; margin-top: 4px; background: rgba(255,255,255,.15); border-radius: 2px; overflow: hidden; }
 .prog i { display: block; height: 100%; background: var(--accent); }
 .meta small.seen { color: var(--accent); }
-.histrow { margin: 8px 0 0; }
 #resumeDlg p { margin: 0 0 6px; color: var(--muted); }
 #status[hidden] { display: none; }
 .now { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -267,6 +347,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
 <header class="top" id="top">
   <div class="brand"><i></i>Zapeo</div>
   <button class="btn listbtn" type="button" id="btnLists"><span class="lbl">Lista</span><b id="curList">Sin lista</b></button>
+  <button class="btn" type="button" id="btnHome">⌂ Inicio</button>
   <button class="btn" type="button" id="btnReload">Recargar</button>
   <div id="msg" role="status"></div>
 </header>
@@ -314,6 +395,52 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
   </section>
 </main>
 
+<section class="ov" id="home" hidden aria-label="Inicio">
+  <div class="ovtop">
+    <div class="logo2"><svg viewBox="0 0 44 44" role="img" aria-label="Zapeo"><circle cx="22" cy="22" r="20" fill="none" stroke="var(--accent)" stroke-width="3"/><path d="M17 13.5 L31 22 L17 30.5 Z" fill="var(--accent)"/></svg><span>Zapeo</span></div>
+    <div class="ovright">
+      <div class="lst"><b id="homeList">Sin lista</b><small id="homeUpd"></small></div>
+      <button class="roundbtn" type="button" id="homeReload" aria-label="Actualizar la lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/></svg></button>
+      <span id="homeClock"></span>
+    </div>
+  </div>
+  <div class="tiles" id="homeTiles">
+    <button class="tile" type="button" data-go="live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 3l4 3 4-3"/><path d="M10.5 10.2v3.6l3-1.8z" fill="currentColor"/></svg><span>Canales</span><small id="hcLive"></small></button>
+    <button class="tile" type="button" data-go="movie"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M17 9h4M3 15h4M17 15h4"/></svg><span>Películas</span><small id="hcMovie"></small></button>
+    <button class="tile" type="button" data-go="series"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="14" height="11" rx="2"/><path d="M7 5h14v11"/><path d="M8 12.5l4 1.5-4 1.5z" fill="currentColor"/></svg><span>Series</span><small id="hcSeries"></small></button>
+    <button class="tile" type="button" data-go="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8l1.6 2.2 2.7-.5.9 2.6 2.6.9-.5 2.7 2.2 1.6-2.2 1.6.5 2.7-2.6.9-.9 2.6-2.7-.5L12 21.2 10.4 19l-2.7.5-.9-2.6-2.6-.9.5-2.7L2.5 12l2.2-1.6-.5-2.7 2.6-.9.9-2.6 2.7.5z"/></svg><span>Ajustes</span><small id="hcSet"></small></button>
+  </div>
+  <div class="shelf" id="shelf" hidden>
+    <h2>Continuar viendo</h2>
+    <div class="shelfrow" id="shelfRow"></div>
+  </div>
+  <div class="hints"><span><kbd>◀ ▶ ▲ ▼</kbd>moverse</span><span><kbd>OK</kbd>elegir</span><span><kbd>Atrás</kbd>salir</span></div>
+</section>
+
+<section class="ov" id="settings" hidden aria-label="Ajustes">
+  <div class="ovhead">
+    <button class="roundbtn" type="button" id="setBack" aria-label="Volver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+    <h1>Ajustes</h1>
+  </div>
+  <div class="stiles" id="setTiles">
+    <button class="tile" type="button" data-set="lists"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 12h8M8 15h5"/></svg><span>Mis listas<small id="stLists"></small></span></button>
+    <button class="tile" type="button" data-set="receive" id="stReceive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><span>Recibir lista<small>Enviarla desde el móvil</small></span></button>
+    <button class="tile" type="button" data-set="theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-.9 2-1.8 0-1.2-1-1.4-1-2.5 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4C21 6.5 17 3 12 3z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="10" cy="7.5" r="1" fill="currentColor"/><circle cx="14.5" cy="7.5" r="1" fill="currentColor"/></svg><span>Tema<small id="stTheme"></small></span></button>
+    <button class="tile" type="button" data-set="reload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/></svg><span>Actualizar ahora<small id="stUpd"></small></span></button>
+    <button class="tile" type="button" data-set="clear" id="btnClearHist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg><span>Borrar historial<small id="clrSub"></small></span></button>
+  </div>
+  <div class="hints"><span>Zapeo <b id="stVer"></b></span><span><kbd>Atrás</kbd>volver al inicio</span></div>
+</section>
+
+<dialog id="themeDlg">
+  <h3>Tema</h3>
+  <div class="themes" id="themeBox"></div>
+  <div class="actions">
+    <button class="btn" type="button" id="themeCancel">Cancelar</button>
+    <button class="btn primary" type="button" id="themeOk">Aplicar</button>
+  </div>
+</dialog>
+
 <input type="file" id="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/vnd.apple.mpegurl" hidden>
 
 <dialog id="listsDlg">
@@ -331,7 +458,6 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
       <button class="btn primary" type="submit" id="lfSave">Guardar</button>
     </div>
   </form>
-  <div class="histrow" id="histRow"><button class="btn sm" type="button" id="btnClearHist">Borrar historial</button></div>
   <div class="actions wrap" id="listsActions">
     <button class="btn" type="button" id="btnAddList">+ Añadir con URL</button>
     <button class="btn" type="button" id="btnReceive" hidden>Recibir lista</button>
@@ -2718,7 +2844,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.10";
+const VERSION = "0.11";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3178,7 +3304,6 @@ function openListsDlg(showForm) {
   $("#ver").textContent = VERSION;
   hideListForm();
   renderLists();
-  updateClrBtn();
   const dlg = $("#listsDlg");
   if (!dlg.open) dlg.showModal();
   if (showForm) openListForm(null);
@@ -3197,7 +3322,6 @@ function openListForm(id) {
   $("#lfUrlWrap").hidden = !showUrl;
   $("#listForm").hidden = false;
   $("#listsActions").hidden = true;
-  $("#histRow").hidden = true;
   $("#listsBox").hidden = true;
   focusEl($("#lfName"));
 }
@@ -3205,7 +3329,6 @@ function hideListForm() {
   editingId = null;
   $("#listForm").hidden = true;
   $("#listsActions").hidden = false;
-  $("#histRow").hidden = false;
   $("#listsBox").hidden = false;
 }
 
@@ -3501,12 +3624,13 @@ function keepFocus(selectorOf, fn) {
 }
 
 function renderAll() {
+  if (!$("#home").hidden) renderHome();
   renderTabs();
   renderGroups();
   renderList();
   // si al repintar se pierde el foco, se devuelve a la lista
   const a = document.activeElement;
-  if ((!a || a === document.body) && !$("dialog[open]") && !isFs()) focusChannelList();
+  if ((!a || a === document.body) && !$("dialog[open]") && !isFs() && !ovOpen()) focusChannelList();
 }
 
 function renderTabs() {
@@ -4063,7 +4187,7 @@ function nextIndex(show) {
   if (last < 0) return 0;
   return hist[hid(show.episodes[last])].v ? Math.min(last + 1, show.episodes.length - 1) : last;
 }
-function contList(tab) {
+function contList(tab, withT) {
   if (tab === "live" || !Object.keys(hist).length) return [];
   const idx = histIndex(), out = [];
   if (tab === "movie") {
@@ -4084,7 +4208,8 @@ function contList(tab) {
       out.push([b.t, show]);
     }
   }
-  return out.sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+  out.sort((a, b) => b[0] - a[0]);
+  return withT ? out : out.map((x) => x[1]);
 }
 // Texto y barra de progreso de una fila
 function progInfo(x, inCont) {
@@ -4152,17 +4277,16 @@ $("#btnClearHist").addEventListener("click", () => {
     delete b.dataset.sure;
     clearHist();
     updateClrBtn();
-    focusEl($("#btnCloseLists"));
     toast("Historial borrado");
   } else {
     b.dataset.sure = "1";
-    b.textContent = "¿Seguro? Pulsa otra vez";
+    $("#clrSub").textContent = "¿Seguro? Pulsa otra vez";
     clrTimer = setTimeout(() => { delete b.dataset.sure; updateClrBtn(); }, 4000);
   }
 });
 function updateClrBtn() {
-  const b = $("#btnClearHist"), n = Object.keys(hist).length;
-  b.textContent = "Borrar historial" + (n ? " (" + n + ")" : "");
+  const n = Object.keys(hist).length;
+  $("#clrSub").textContent = n ? n + (n === 1 ? " elemento guardado" : " elementos guardados") : "No hay nada guardado";
 }
 
 /* ---------- Saltos y barra de reproducción (películas y series) ---------- */
@@ -4316,8 +4440,13 @@ function isFs() {
 function updateFsBtn() {
   $("#btnFs").textContent = isFs() ? "Salir de pantalla completa" : "Pantalla completa";
 }
+// Al salir de pantalla completa, una película o episodio se pausa (y queda guardado el punto) en vez de seguir sonando en pequeño.
+function pauseVodOnExit() {
+  if (isVodPlaying() && !video.paused) video.pause();
+  histTouch();
+}
 function toggleFs() {
-  if (isFs()) skHide(true);
+  if (isFs()) { skHide(true); pauseVodOnExit(); }
   if (isNative()) {
     document.body.classList.toggle("pfs");
     updateFsBtn();
@@ -4381,7 +4510,7 @@ $("#btnFs").addEventListener("click", toggleFs);
 video.addEventListener("dblclick", toggleFs);
 document.addEventListener("fullscreenchange", () => {
   updateFsBtn();
-  if (!document.fullscreenElement) { skHide(true); refreshProgress(); focusChannelList(); } // al salir, vuelves al elemento que estabas viendo
+  if (!document.fullscreenElement) { skHide(true); pauseVodOnExit(); refreshProgress(); focusChannelList(); } // al salir, vuelves al elemento que estabas viendo
 });
 
 /* ---------- Teclado / mando ---------- */
@@ -4401,8 +4530,8 @@ function focusTab() {
 }
 
 // Navegación con flechas dentro de un diálogo: se salta al elemento más cercano en esa dirección.
-function dialogNav(e) {
-  const d = $$("dialog[open]").pop();
+function dialogNav(e, root) {
+  const d = root || $$("dialog[open]").pop();
   if (!d) return;
   const k = e.key;
   if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(k)) {
@@ -4442,6 +4571,13 @@ function dialogNav(e) {
 
 document.addEventListener("keydown", (e) => {
   if ($("dialog[open]")) { dialogNav(e); return; }
+  if (ovOpen()) {
+    // inicio y ajustes: flechas entre botones; Atrás sube un nivel
+    const ov = !$("#settings").hidden ? $("#settings") : $("#home");
+    if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); ov === $("#home") ? askExit() : showHome(); }
+    else dialogNav(e, ov);
+    return;
+  }
   const t = e.target;
   const typing = (t.tagName === "INPUT" && t.type === "text") || t.tagName === "TEXTAREA";
   const key = e.key;
@@ -4537,6 +4673,8 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
+  if ((inTop || inTabs) && (key === "Escape" || key === "Backspace")) { e.preventDefault(); backMain(); return; }
+
   if (inTop) {
     const btns = $$("#top button");
     if (key === "ArrowRight" || key === "ArrowLeft") {
@@ -4585,10 +4723,155 @@ document.addEventListener("keydown", (e) => {
     else if (t.id === "btnFs" || t.id === "btnFav") { e.preventDefault(); focusChannelList(); }
     else if (t.closest && t.closest("#chlist")) { e.preventDefault(); move($$("#chlist .btn"), t, -1); }
   } else if (key === "Escape" || key === "Backspace") {
-    if (state.show) { e.preventDefault(); closeShow(); }
-    else if (t.id === "btnFs" || t.id === "btnFav") focusChannelList();
+    e.preventDefault();
+    backMain();
   }
 });
+
+/* ---------- Temas ---------- */
+const THEMES = {
+  atardecer: { name: "Atardecer", sw: ["#1a0b2e", "#c084fc"] },
+  aurora: { name: "Aurora", sw: ["#0b1424", "#2dd4a8"] },
+  oceano: { name: "Océano", sw: ["#06213a", "#38bdf8"] },
+  grafito: { name: "Grafito", sw: ["#1b1f27", "#f5d27a"] },
+};
+let themeSaved = store.get("zapeo.theme", "atardecer");
+if (!THEMES[themeSaved]) themeSaved = "atardecer";
+function applyTheme(t) { document.documentElement.dataset.theme = THEMES[t] ? t : "atardecer"; }
+applyTheme(themeSaved);
+let themePick = themeSaved;
+function openThemeDlg() {
+  themePick = themeSaved;
+  $("#themeBox").innerHTML = Object.keys(THEMES).map((k) =>
+    `<button class="themeopt${k === themePick ? " on" : ""}" type="button" data-t="${k}" style="--sw2:${THEMES[k].sw[1]}"><span class="sw" style="background:${THEMES[k].sw[0]}"></span><b>${esc(THEMES[k].name)}</b></button>`).join("");
+  $("#themeDlg").showModal();
+  focusEl($(`.themeopt[data-t="${themePick}"]`));
+}
+function pickTheme(k) {
+  themePick = k;
+  applyTheme(k); // se ve al instante, sin guardar todavía
+  $$(".themeopt").forEach((b) => b.classList.toggle("on", b.dataset.t === k));
+}
+$("#themeBox").addEventListener("focusin", (e) => { const b = e.target.closest(".themeopt"); if (b) pickTheme(b.dataset.t); });
+$("#themeBox").addEventListener("click", (e) => { const b = e.target.closest(".themeopt"); if (b) { pickTheme(b.dataset.t); focusEl($("#themeOk")); } });
+$("#themeOk").addEventListener("click", () => {
+  themeSaved = themePick;
+  store.set("zapeo.theme", themeSaved);
+  $("#themeDlg").close();
+});
+$("#themeCancel").addEventListener("click", () => $("#themeDlg").close());
+$("#themeDlg").addEventListener("close", () => { applyTheme(themeSaved); renderSettings(); }); // si no se aplicó, vuelve al tema de antes
+
+/* ---------- Inicio y ajustes ---------- */
+const ovOpen = () => !$("#home").hidden || !$("#settings").hidden;
+function hideOverlays() { $("#home").hidden = true; $("#settings").hidden = true; }
+function hue(str) { let h = 0; for (const c of String(str)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+let shelfCur = [];
+function renderHome() {
+  const l = findList(lists.current);
+  $("#homeList").textContent = l ? l.name : "Sin lista";
+  $("#homeUpd").textContent = l && l.updated ? "actualizada " + ago(l.updated) : "";
+  const n = (t) => state.byType[t].length;
+  const cnt = (k, one, many) => (k ? k.toLocaleString("es-ES") + " " + (k === 1 ? one : many) : "");
+  $("#hcLive").textContent = cnt(n("live"), "canal", "canales");
+  $("#hcMovie").textContent = cnt(n("movie"), "película", "películas");
+  $("#hcSeries").textContent = cnt(n("series"), "serie", "series");
+  $("#hcSet").textContent = "Listas y tema";
+  $("#homeClock").textContent = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  // Continuar viendo: lo último que se dejó a medias, películas y series juntas
+  shelfCur = [];
+  for (const tab of ["movie", "series"]) for (const [t, it] of contList(tab, true)) shelfCur.push({ t, it, tab });
+  shelfCur.sort((a, b) => b.t - a.t);
+  shelfCur = shelfCur.slice(0, 4);
+  $("#shelf").hidden = !shelfCur.length;
+  $("#shelfRow").innerHTML = shelfCur.map((c, i) => {
+    const pr = progInfo(c.it, true) || { text: "", pct: 0 };
+    const h = hue(c.it.name);
+    const img = c.it.logo ? `<img src="${esc(c.it.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
+    return `<button class="card" type="button" data-i="${i}"><span class="pic" style="background:linear-gradient(135deg,hsl(${h},45%,32%),hsl(${(h + 40) % 360},45%,16%))">${img}<b>${esc(c.it.name)}</b>${pr.pct > 0 && pr.pct < 100 ? `<span class="bar"><i style="width:${pr.pct.toFixed(1)}%"></i></span>` : ""}</span><small>${esc(pr.text)}</small></button>`;
+  }).join("");
+}
+function showHome() {
+  skHide(true);
+  $("#settings").hidden = true;
+  renderHome();
+  $("#home").hidden = false;
+  focusEl($('#homeTiles .tile[data-go="live"]') || $("#homeTiles .tile"));
+}
+function showSettings() {
+  renderSettings();
+  $("#home").hidden = true;
+  $("#settings").hidden = false;
+  focusEl($("#setTiles .tile"));
+}
+function renderSettings() {
+  const l = findList(lists.current);
+  $("#stLists").textContent = (l ? l.name + " · " : "") + lists.items.length + (lists.items.length === 1 ? " lista" : " listas");
+  $("#stReceive").hidden = !MB;
+  $("#stTheme").textContent = THEMES[themeSaved].name;
+  $("#stUpd").textContent = l && l.updated ? "actualizada " + ago(l.updated) : "";
+  $("#stVer").textContent = VERSION;
+  updateClrBtn();
+}
+function goMain(tab) {
+  hideOverlays();
+  switchTab(tab);
+  focusChannelList();
+}
+async function reloadNow() {
+  if (!lists.current) { toast("Primero añade una lista"); return; }
+  toast("Actualizando…");
+  await refreshList(lists.current, { silent: false });
+  const m = $("#msg").textContent;
+  if (m) toast(m);
+  if (!$("#home").hidden) renderHome();
+  if (!$("#settings").hidden) renderSettings();
+}
+$("#homeTiles").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-go]");
+  if (!b) return;
+  if (b.dataset.go === "settings") showSettings();
+  else goMain(b.dataset.go);
+});
+$("#shelfRow").addEventListener("click", (e) => {
+  const b = e.target.closest(".card");
+  const c = b && shelfCur[+b.dataset.i];
+  if (!c) return;
+  hideOverlays();
+  state.tab = c.tab;
+  state.group[c.tab] = "__cont";
+  state.show = null;
+  state.query = "";
+  $("#search").value = "";
+  state.shown = PAGE;
+  renderAll();
+  if (c.it.kind === "show") openShow(c.it);
+  else openItem(c.it, state.view);
+});
+$("#homeReload").addEventListener("click", reloadNow);
+$("#setBack").addEventListener("click", showHome);
+$("#btnHome").addEventListener("click", showHome);
+$("#setTiles").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-set]");
+  if (!b) return;
+  const a = b.dataset.set;
+  if (a === "lists") openListsDlg(false);
+  else if (a === "receive") openReceive();
+  else if (a === "theme") openThemeDlg();
+  else if (a === "reload") reloadNow();
+});
+setInterval(() => { if (!$("#home").hidden) $("#homeClock").textContent = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }); }, 15000);
+
+// Atrás en la pantalla principal: sube un nivel cada vez y acaba en el inicio.
+function backMain() {
+  const a = document.activeElement, cl = a && a.classList;
+  if (state.show) closeShow();
+  else if (cl && (cl.contains("ch") || cl.contains("more"))) focusGroup();
+  else if (cl && cl.contains("grp")) focusTab();
+  else if (a && (a.id === "btnFs" || a.id === "btnFav")) focusChannelList();
+  else if (a && a.id === "search") focusTab();
+  else showHome();
+}
 
 /* ---------- Salir con confirmación ---------- */
 function askExit() {
@@ -4611,17 +4894,11 @@ window.addEventListener("load", () => {
   App.addListener("backButton", () => {
     const open = $$("dialog[open]").pop();
     if (open) { open.close(); return; }
-    const a = document.activeElement;
-    const cl = a && a.classList;
     if (sk.mode === "bar") skHide();
     else if (isFs()) toggleFs();
-    else if (state.show) closeShow();
-    else if (cl && (cl.contains("ch") || cl.contains("more"))) focusGroup();
-    else if (cl && cl.contains("grp")) focusTab();
-    else if (cl && cl.contains("tab")) focusEl($("#btnLists"));
-    else if (a && (a.id === "btnFs" || a.id === "btnFav")) focusChannelList();
-    else if (a && a.id === "search") focusTab();
-    else askExit();
+    else if (!$("#settings").hidden) showHome();
+    else if (!$("#home").hidden) askExit();
+    else backMain();
   });
 });
 
@@ -4637,7 +4914,7 @@ window.addEventListener("load", () => {
   } else {
     renderAll();
   }
-  focusEl(document.querySelector("#chlist .ch") || document.querySelector("#chlist .btn"));
+  showHome();
   if (!lists.items.length && MB) openReceive(); // sin lista: directamente la pantalla con el código
 })();
 </script>
