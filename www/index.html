@@ -196,6 +196,46 @@ main {
 .star { flex: none; border: 0; background: none; padding: 8px 10px; color: var(--muted); font-size: 16px; border-radius: 6px; }
 .star.on { color: var(--accent); }
 .more { width: 100%; margin-top: 6px; padding: 10px; border-radius: 6px; border: 1px dashed var(--line); background: none; color: var(--muted); }
+/* Películas y series: carátulas en cuadrícula, sin reproductor pequeño */
+body.pmode { grid-template-rows: auto 1fr; }
+body.pmode .top { display: none; }
+#main.tab-movie, #main.tab-series { grid-template-columns: 210px minmax(0, 1fr); }
+#main.tab-movie .stage, #main.tab-series .stage {
+  position: fixed; left: -300vw; top: 0; width: 640px; height: 360px; padding: 0; border: 0; overflow: visible;
+}
+#main.tab-movie .panel:nth-child(2), #main.tab-series .panel:nth-child(2) {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 280px); grid-template-rows: auto minmax(0, 1fr); border-right: 0;
+}
+#main.tab-movie .panel:nth-child(2) .scroll, #main.tab-series .panel:nth-child(2) .scroll { grid-column: 1 / -1; }
+#main.tab-movie .searchwrap, #main.tab-series .searchwrap { padding: 8px 14px 0 0; }
+#chlist.posters {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(7.4rem, 1fr)); gap: 16px 14px;
+  align-content: start; padding: 8px 14px 18px 10px;
+}
+#chlist.posters .more, #chlist.posters .hint { grid-column: 1 / -1; }
+.row.poster { display: block; position: relative; margin: 0; background: none; }
+.row.poster:hover { background: none; }
+.row.poster.playing { box-shadow: none; }
+.poster .ch { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 0; width: 100%; border-radius: 10px; }
+.poster .ch:focus-visible { outline: none; }
+.pimg {
+  position: relative; aspect-ratio: 4 / 5; border-radius: 10px; overflow: hidden; display: grid; place-items: center;
+  font-size: 38px; font-weight: 700; color: rgba(255,255,255,.55); border: 3px solid transparent; transition: transform .12s;
+}
+.pimg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.poster .ch:focus .pimg, .poster .ch:focus-visible .pimg {
+  border-color: var(--accent); transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .3), 0 10px 22px rgba(0,0,0,.55);
+}
+.row.poster.playing .pimg { border-color: rgba(var(--accent-rgb), .7); }
+.ptxt b { display: block; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ptxt small { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pbar { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: rgba(255,255,255,.25); }
+.pbar i { display: block; height: 100%; background: var(--accent); }
+.pseen { position: absolute; left: 6px; top: 6px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+.row.poster .star { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.6); color: #fff; border-radius: 50%; padding: 3px 8px; display: none; }
+.row.poster .star.on, .row.poster:hover .star, .row.poster:focus-within .star { display: block; }
+#main.tab-movie #chlist:not(.posters), #main.tab-series #chlist:not(.posters) { max-width: 760px; }
 .back { display: block; width: 100%; flex: none; padding: 10px; color: var(--accent); font-weight: 600; }
 .season {
   padding: 14px 8px 4px; color: var(--muted); font-size: 12px; font-weight: 600;
@@ -2844,7 +2884,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.11";
+const VERSION = "0.12";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3020,6 +3060,7 @@ const cache = (() => {
 })();
 
 const PAGE = 200;
+const pageSize = () => (state.tab === "live" ? PAGE : 48); // las carátulas pesan más
 const TABS = ["live", "movie", "series"];
 const TAB_NAMES = { live: "Canales", movie: "Películas", series: "Series" };
 const state = {
@@ -3146,7 +3187,7 @@ function applyBuilt(b, { keep = false } = {}) {
     state.tab = firstFull;
   }
   state.show = null;
-  state.shown = PAGE;
+  state.shown = pageSize();
   renderAll();
 }
 
@@ -3635,6 +3676,7 @@ function renderAll() {
 
 function renderTabs() {
   $("#main").className = "tab-" + state.tab;
+  document.body.classList.toggle("pmode", state.tab !== "live");
   $$(".tab").forEach((b) => {
     const t = b.dataset.tab;
     b.classList.toggle("active", t === state.tab);
@@ -3693,6 +3735,15 @@ function rowHTML(x, i) {
     sub = state.show ? pr.text : x.kind === "show" ? pr.text : pr.text + " · " + sub;
     if (pr.pct > 0 && pr.pct < 100) bar = `<span class="prog"><i style="width:${pr.pct.toFixed(1)}%"></i></span>`;
   }
+  if (state.tab !== "live" && !state.show) {
+    const h = hue(name);
+    const pbar = pr && pr.pct > 0 && pr.pct < 100 ? `<span class="pbar"><i style="width:${pr.pct.toFixed(1)}%"></i></span>` : "";
+    const seen = pr && pr.pct >= 100 ? `<span class="pseen" aria-hidden="true">✓</span>` : "";
+    return `<div class="row poster${isPlaying(x) ? " playing" : ""}">
+    <button class="ch" data-i="${i}"><span class="pimg" style="background:linear-gradient(160deg,hsl(${h},40%,30%),hsl(${(h + 40) % 360},40%,15%))">${logoHTML(x, name)}${seen}${pbar}</span><span class="ptxt"><b>${esc(name)}</b><small>${esc(sub)}</small></span></button>
+    ${star ? `<button class="star${fav ? " on" : ""}" data-star="${i}" tabindex="-1" aria-label="Favorito">${fav ? "★" : "☆"}</button>` : ""}
+  </div>`;
+  }
   return `<div class="row${isPlaying(x) ? " playing" : ""}">
     <button class="ch" data-i="${i}"><span class="logo">${logoHTML(x, name)}</span><span class="meta"><b>${esc(name)}</b><small>${esc(sub)}</small>${bar}</span></button>
     ${star ? `<button class="star${fav ? " on" : ""}" data-star="${i}" tabindex="-1" aria-label="Favorito">${fav ? "★" : "☆"}</button>` : ""}
@@ -3704,6 +3755,7 @@ function renderList() {
     (a) => (a.dataset && a.dataset.back !== undefined ? ".ch[data-back]" : a.dataset && a.dataset.i && a.classList.contains("ch") ? `.ch[data-i="${a.dataset.i}"]` : null),
     () => {
       const box = $("#chlist");
+      box.classList.toggle("posters", state.tab !== "live" && !state.show && !!state.channels.length);
 
       if (!state.channels.length) {
         state.view = [];
@@ -3766,7 +3818,7 @@ function switchTab(t) {
   state.show = null;
   state.query = "";
   $("#search").value = "";
-  state.shown = PAGE;
+  state.shown = pageSize();
   renderAll();
 }
 
@@ -4468,7 +4520,7 @@ $("#tabs").addEventListener("click", (e) => {
 $("#search").addEventListener("input", (e) => {
   state.query = e.target.value;
   state.show = null;
-  state.shown = PAGE;
+  state.shown = pageSize();
   renderList();
 });
 
@@ -4477,7 +4529,7 @@ $("#grplist").addEventListener("click", (e) => {
   if (!b) return;
   state.group[state.tab] = b.dataset.g;
   state.show = null;
-  state.shown = PAGE;
+  state.shown = pageSize();
   $$("#grplist .grp").forEach((x) => x.classList.toggle("active", x === b));
   renderList();
 });
@@ -4489,7 +4541,7 @@ $("#chlist").addEventListener("click", async (e) => {
   const more = e.target.closest("[data-more]");
   if (more) {
     const old = Math.min(state.view.length, state.shown);
-    state.shown += PAGE;
+    state.shown += pageSize();
     renderList();
     focusEl(document.querySelector(`.ch[data-i="${old}"]`));
     return;
@@ -4514,6 +4566,29 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 /* ---------- Teclado / mando ---------- */
+// Cuadrícula de carátulas: se va al vecino más cercano en la dirección de la flecha.
+function gridMove(t, key) {
+  const items = $$("#chlist .poster .ch, #chlist .more").filter((el) => el !== t);
+  const c = t.getBoundingClientRect();
+  const cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+  let best = null, bestScore = Infinity;
+  for (const el of items) {
+    const r = el.getBoundingClientRect();
+    const ex = r.left + r.width / 2, ey = r.top + r.height / 2;
+    const dx = ex - cx, dy = ey - cy;
+    let primary, secondary;
+    if (key === "ArrowDown") { primary = dy; secondary = Math.abs(dx); }
+    else if (key === "ArrowUp") { primary = -dy; secondary = Math.abs(dx); }
+    else if (key === "ArrowRight") { primary = dx; secondary = Math.abs(dy); if (secondary > c.height / 2) continue; }
+    else { primary = -dx; secondary = Math.abs(dy); if (secondary > c.height / 2) continue; }
+    if (primary <= 4) continue;
+    const score = primary + secondary * 3;
+    if (score < bestScore) { bestScore = score; best = el; }
+  }
+  if (best) focusEl(best);
+  else if (key === "ArrowUp") $("#search").focus();
+  else if (key === "ArrowLeft") focusGroup();
+}
 function focusables(container) { return $$(container + " .grp, " + container + " .ch, " + container + " .more"); }
 function move(list, from, delta) {
   const i = list.indexOf(from);
@@ -4692,7 +4767,13 @@ document.addEventListener("keydown", (e) => {
       focusEl(n);
       n.click();
     } else if (key === "ArrowDown") { e.preventDefault(); focusGroup(); }
-    else if (key === "ArrowUp") { e.preventDefault(); focusEl($("#btnLists")); }
+    else if (key === "ArrowUp") { e.preventDefault(); state.tab === "live" ? focusEl($("#btnLists")) : showHome(); }
+    return;
+  }
+
+  if (inChannels && $("#chlist").classList.contains("posters") && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) {
+    e.preventDefault();
+    gridMove(t, key);
     return;
   }
 
@@ -4716,7 +4797,7 @@ document.addEventListener("keydown", (e) => {
     }
   } else if (key === "ArrowRight") {
     if (inGroups) { e.preventDefault(); focusChannelList(); }
-    else if (inChannels) { e.preventDefault(); focusEl($("#btnFs")); }
+    else if (inChannels && state.tab === "live") { e.preventDefault(); focusEl($("#btnFs")); }
     else if (t.closest && t.closest("#chlist")) { e.preventDefault(); move($$("#chlist .btn"), t, 1); }
   } else if (key === "ArrowLeft") {
     if (inChannels) { e.preventDefault(); focusGroup(); }
@@ -4843,7 +4924,7 @@ $("#shelfRow").addEventListener("click", (e) => {
   state.show = null;
   state.query = "";
   $("#search").value = "";
-  state.shown = PAGE;
+  state.shown = pageSize();
   renderAll();
   if (c.it.kind === "show") openShow(c.it);
   else openItem(c.it, state.view);
