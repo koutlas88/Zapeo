@@ -2884,7 +2884,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.12";
+const VERSION = "0.13";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -4894,10 +4894,26 @@ function renderSettings() {
   $("#stVer").textContent = VERSION;
   updateClrBtn();
 }
-function goMain(tab) {
+// Entra en una pestaña sin que se vea nunca la lista anterior: primero se
+// prepara el marco (clases + lista vacía con «Cargando…»), se quita la
+// pantalla de encima, y el pintado pesado ocurre en el siguiente fotograma.
+let enterSeq = 0;
+function enterTab(tab, work) {
+  const seq = ++enterSeq;
+  const box = $("#chlist");
+  $("#main").className = "tab-" + tab;
+  document.body.classList.toggle("pmode", tab !== "live");
+  box.classList.toggle("posters", tab !== "live");
+  box.innerHTML = `<p class="hint">Cargando…</p>`;
   hideOverlays();
-  switchTab(tab);
-  focusChannelList();
+  requestAnimationFrame(() => setTimeout(() => {
+    if (seq !== enterSeq) return;
+    work();
+    focusChannelList();
+  }, 0));
+}
+function goMain(tab) {
+  enterTab(tab, () => switchTab(tab));
 }
 async function reloadNow() {
   if (!lists.current) { toast("Primero añade una lista"); return; }
