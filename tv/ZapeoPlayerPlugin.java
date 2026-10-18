@@ -177,7 +177,7 @@ public class ZapeoPlayerPlugin extends Plugin {
                 if (isLive && !hls && preMs > 0) {
                     final DataSource.Factory inner = http;
                     final long target = preMs;
-                    final long maxWait = preMs + 4000L;
+                    final long maxWait = Math.max(15000L, preMs + 10000L);
                     dsf = new DataSource.Factory() {
                         @Override
                         public DataSource createDataSource() {

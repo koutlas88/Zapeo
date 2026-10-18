@@ -48,11 +48,12 @@ final class TsBurstTrimmer {
     private byte[] pmt = null;
     private int pmtPid = -1;
 
-    // detección de ráfaga: (instante, PCR) de los últimos instantes
-    private final long[] hT = new long[256];
-    private final long[] hP = new long[256];
-    private int hStart = 0;
-    private int hCount = 0;
+    // Seguimiento del adelanto del servidor: L = vídeo recibido - tiempo transcurrido. Durante la ráfaga L sube;
+    // cuando el servidor ya manda a ritmo real, L se queda quieto (aunque llegue a trozos).
+    private long tFirst = 0;
+    private double refL = 0;
+    private long tRef = 0;
+    private double maxL = 0;
 
     TsBurstTrimmer(Source src, long targetMs, long maxWaitMs) {
         this.src = src;
@@ -80,7 +81,6 @@ final class TsBurstTrimmer {
 
     private void collect() throws IOException {
         final long t0 = System.currentTimeMillis();
-        long lastBurst = t0;
         while (true) {
             if (n + 65536 > store.length) {
                 if (store.length >= MAX_STORE) {
@@ -111,13 +111,21 @@ final class TsBurstTrimmer {
                 return;
             }
             if (pcrCount > 0) {
-                long lastPcr = pcrVal[pcrCount - 1];
-                pushHist(now, lastPcr);
-                if (hCount > 1 && now - hT[hStart] >= 450 && (lastPcr - hP[hStart]) / 90000.0 > 1.0) lastBurst = now;
-                double media = (lastPcr - pcrVal[0]) / 90000.0;
+                if (tFirst == 0) {
+                    tFirst = now;
+                    tRef = now;
+                }
+                double elapsed = (now - tFirst) / 1000.0;
+                double media = (pcrVal[pcrCount - 1] - pcrVal[0]) / 90000.0;
+                double l = media - elapsed;
+                if (l > maxL) maxL = l;
+                if (l > refL + 1.0) {
+                    refL = l;
+                    tRef = now; // el servidor sigue adelantando: la ráfaga no ha terminado
+                }
                 long waited = now - t0;
-                boolean calm = now - lastBurst >= 700;
-                if (media >= targetSec + 1.0 && calm) {
+                boolean steady = now - tRef >= 3000 && elapsed >= 2.0;
+                if (media >= targetSec + 1.0 && steady) {
                     finish();
                     return;
                 }
@@ -126,25 +134,6 @@ final class TsBurstTrimmer {
                     return;
                 }
             }
-        }
-    }
-
-    private void pushHist(long t, long pcr) {
-        int cap = hT.length;
-        if (hCount == cap) {
-            hStart = (hStart + 1) % cap;
-            hCount--;
-        }
-        int idx = (hStart + hCount) % cap;
-        hT[idx] = t;
-        hP[idx] = pcr;
-        hCount++;
-        while (hCount > 2) {
-            int second = (hStart + 1) % cap;
-            if (hT[second] <= t - 600) {
-                hStart = second;
-                hCount--;
-            } else break;
         }
     }
 
@@ -250,7 +239,10 @@ final class TsBurstTrimmer {
         collecting = false;
         int cut = 0;
         if (alignedStart >= 0 && pcrCount >= 2 && kfCount > 0) {
-            long want = pcrVal[pcrCount - 1] - (long) (targetSec * 90000.0);
+            // Borde del directo: lo recibido más lo que el servidor ya tenía de adelanto. El colchón se mide desde ahí.
+            double elapsed = tFirst == 0 ? 0 : (System.currentTimeMillis() - tFirst) / 1000.0;
+            long edge = pcrVal[0] + (long) ((elapsed + maxL) * 90000.0);
+            long want = edge - (long) (targetSec * 90000.0);
             // el último inicio de imágenes que aún deja, como mínimo, el colchón pedido
             for (int i = kfCount - 1; i >= 0; i--) {
                 if (kfPcr[i] <= want) {
