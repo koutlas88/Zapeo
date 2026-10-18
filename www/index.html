@@ -521,6 +521,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
         <button class="btn sm" type="button" data-pre="6">6 s</button>
         <button class="btn sm" type="button" data-pre="10">10 s</button>
         <button class="btn sm" type="button" data-pre="15">15 s</button>
+        <button class="btn sm" type="button" data-pre="30">30 s</button>
       </div></div>
     <div class="advrow"><span>Acercarse al directo yendo un poco más rápido</span><button class="btn sm" type="button" id="btnSoft"></button></div>
     <div class="advrow"><span>Perseguir el directo con saltos (provoca cortes)</span><button class="btn sm" type="button" id="btnChase"></button></div>
@@ -2893,7 +2894,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.14.1";
+const VERSION = "0.15";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3373,6 +3374,7 @@ function openListForm(id) {
   $("#listForm").hidden = false;
   $("#listsActions").hidden = true;
   $("#listsBox").hidden = true;
+  $("#advBox").hidden = true; // mientras se edita la lista, los ajustes avanzados no estorban
   focusEl($("#lfName"));
 }
 function hideListForm() {
@@ -3380,6 +3382,7 @@ function hideListForm() {
   $("#listForm").hidden = true;
   $("#listsActions").hidden = false;
   $("#listsBox").hidden = false;
+  $("#advBox").hidden = !advOn();
 }
 
 $("#btnLists").addEventListener("click", () => openListsDlg(false));
@@ -3471,9 +3474,9 @@ $("#pasteOk").addEventListener("click", async () => {
 let adv = store.get("zapeo.adv", "") === "1";
 // Ajustes de reproducción (se cambian en «Mis listas» con el modo avanzado)
 const cfg = {
-  pre: [3, 6, 10, 15].includes(+store.get("zapeo.pre", "6")) ? +store.get("zapeo.pre", "6") : 6, // segundos guardados antes de empezar un directo
+  pre: [3, 6, 10, 15, 30].includes(+store.get("zapeo.pre", "6")) ? +store.get("zapeo.pre", "6") : 6, // segundos guardados antes de empezar un directo
   chase: store.get("zapeo.chase", "0") === "1", // la librería salta hacia delante para acercarse al directo (provoca cortes: apagado por defecto)
-  soft: store.get("zapeo.soft", "1") !== "0", // acercarse al directo yendo un 5 % más rápido, sin saltos
+  soft: store.get("zapeo.soft", "0") === "1", // acercarse al directo yendo algo más rápido (apagado por defecto: se prefiere velocidad normal y algo de retraso)
   diag: store.get("zapeo.diag", "0") === "1",
   exo: store.get("zapeo.engine", "exo") !== "web", // reproductor nativo de Android (ExoPlayer) cuando está disponible
 };
@@ -4047,14 +4050,25 @@ function holdUntilBuffered(target, maxMs, trim) {
 }
 
 const dg = { seeks: 0, jump: 0, lastCT: 0, skip: false };
+const dgHist = [];
+function dgRange() {
+  if (dgHist.length < 6) return "";
+  const v = dgHist.map((x) => x[1]);
+  return Math.min(...v).toFixed(0) + "–" + Math.max(...v).toFixed(0) + " s";
+}
 function updateDiag() {
+  if (session && session.live && session.ok) {
+    const n = Date.now();
+    dgHist.push([n, aheadSec()]);
+    while (dgHist.length && dgHist[0][0] < n - 30000) dgHist.shift();
+  } else dgHist.length = 0;
   const el = $("#diag");
   if (!cfg.diag || !state.current || !session) { el.hidden = true; return; }
   const q = video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality() : null;
   const m = session.plan[Math.min(session.i, session.plan.length - 1)];
   el.textContent = [
     "Método: " + (m === "exo" ? "ExoPlayer (nativo)" : m) + (session.live ? " (directo)" : ""),
-    "Colchón: " + aheadSec().toFixed(1) + " s" + (session.live ? "  (objetivo " + cfg.pre + ")" : ""),
+    "Colchón: " + aheadSec().toFixed(1) + " s" + (session.live ? "  (objetivo " + cfg.pre + ")" : "") + (dgRange() ? "  · últimos 30 s: " + dgRange() : ""),
     "Imágenes descartadas: " + (q ? q.droppedVideoFrames + " de " + q.totalVideoFrames : "—"),
     "Velocidad: " + video.playbackRate.toFixed(2) + "x",
     "Saltos: " + dg.seeks + (dg.seeks ? "  último: " + (dg.jump >= 0 ? "+" : "") + dg.jump.toFixed(1) + " s" : ""),
@@ -4234,11 +4248,11 @@ function runMethod() {
     s.cuDone = false; s.cuT0 = 0;
     nvOn(true);
     Object.assign(nv, { id: ++nv.seq, pos: 0, at: performance.now(), buf: 0, dur: s.live ? Infinity : NaN, st: "idle", playing: false, paused: true, wait: false, seeking: false, speed: 1, err: null, dropped: 0, rendered: 0, live: s.live });
-    ZP.load({ id: nv.id, url: u, ua: navigator.userAgent, live: s.live, hls: /\.m3u8/i.test(u), startMs: Math.round((s.resumeAt || 0) * 1000), muted: vel.muted })
+    ZP.load({ id: nv.id, url: u, ua: navigator.userAgent, live: s.live, preMs: s.live ? cfg.pre * 1000 : 0, hls: /\.m3u8/i.test(u), startMs: Math.round((s.resumeAt || 0) * 1000), muted: vel.muted })
       .then(() => {
         if (my !== token || run !== s.run) return;
         syncNative(true);
-        if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000, false);
+        if (s.live) holdUntilBuffered(Math.max(2, cfg.pre - 1), cfg.pre * 1000 + 4000, false);
         else video.play();
       })
       .catch((e) => fail("nativo: " + ((e && e.message) || e)));
