@@ -38,7 +38,7 @@ build_number = os.environ.get("BUILD_NUMBER", "1")
 gradle = root / "app" / "build.gradle"
 g = gradle.read_text(encoding="utf-8")
 g = re.sub(r"versionCode\s+\d+", "versionCode " + build_number, g, count=1)
-g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.13.' + build_number + '"', g, count=1)
+g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.14.' + build_number + '"', g, count=1)
 
 # 6) Firmar SIEMPRE con la misma llave (tv/debug.keystore), para poder actualizar sin desinstalar.
 #    Se declara en el propio proyecto: así no depende de dónde busque Gradle la llave en el servidor.
@@ -55,6 +55,42 @@ signing = (
 if "signingConfigs" not in g:
     assert "\nandroid {\n" in g, "No se encontró el bloque android { } en build.gradle"
     g = g.replace("\nandroid {\n", "\nandroid {\n" + signing, 1)
+
+# 7) Reproductor nativo (ExoPlayer / Media3). Con ZAPEO_NO_EXO=1 se omite (red de seguridad si no compila).
+if os.environ.get("ZAPEO_NO_EXO") != "1":
+    MEDIA3 = "1.5.1"
+    deps = (
+        '    implementation "androidx.media3:media3-exoplayer:%s"\n'
+        '    implementation "androidx.media3:media3-exoplayer-hls:%s"\n'
+    ) % (MEDIA3, MEDIA3)
+    if "media3-exoplayer" not in g:
+        assert "\ndependencies {\n" in g, "No se encontró el bloque dependencies { } en build.gradle"
+        g = g.replace("\ndependencies {\n", "\ndependencies {\n" + deps, 1)
+    pkg = root / "app" / "src" / "main" / "java" / "com" / "zapeo" / "player"
+    pkg.mkdir(parents=True, exist_ok=True)
+    shutil.copy("tv/ZapeoPlayerPlugin.java", pkg / "ZapeoPlayerPlugin.java")
+    (pkg / "MainActivity.java").write_text(
+        "package com.zapeo.player;\n\n"
+        "import android.os.Bundle;\n"
+        "import com.getcapacitor.BridgeActivity;\n\n"
+        "public class MainActivity extends BridgeActivity {\n"
+        "    @Override\n"
+        "    public void onCreate(Bundle savedInstanceState) {\n"
+        "        registerPlugin(ZapeoPlayerPlugin.class);\n"
+        "        super.onCreate(savedInstanceState);\n"
+        "    }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    # Las direcciones http (la mayoría de listas) deben poder abrirse también desde el código nativo
+    mt = manifest.read_text(encoding="utf-8")
+    if "usesCleartextTraffic" not in mt:
+        mt = mt.replace("<application", '<application android:usesCleartextTraffic="true"', 1)
+        manifest.write_text(mt, encoding="utf-8")
+    print("ExoPlayer (Media3 %s) añadido" % MEDIA3)
+else:
+    print("Sin ExoPlayer (modo de seguridad)")
+
 gradle.write_text(g, encoding="utf-8")
 
 print("Proyecto ajustado para Android TV, versión", build_number)
