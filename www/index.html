@@ -2893,7 +2893,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.14";
+const VERSION = "0.14.1";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -4078,9 +4078,17 @@ function softCatchUp() {
   const slow = () => { if (video.playbackRate !== 1) video.playbackRate = 1; };
   if (!cfg.soft || !s.ok || video.paused || video.seeking) { slow(); return; }
   const a = aheadSec(), hi = Math.max(cfg.pre * 2, cfg.pre + 6);
+  if (video.native) {
+    // ExoPlayer: solo se acelera una vez, al entrar, para quitar la ráfaga inicial. Después el colchón sube y baja
+    // solo (el servidor manda el vídeo a trozos) y acelerar a cada subida se notaría continuamente.
+    if (s.cuDone) { slow(); return; }
+    if (!s.cuT0) s.cuT0 = Date.now();
+    if (a <= cfg.pre + 1.5 || Date.now() - s.cuT0 > 90000) { s.cuDone = true; slow(); return; }
+    const want = a > cfg.pre + 4 ? 1.15 : 1.08;
+    if (video.playbackRate !== want) video.playbackRate = want;
+    return;
+  }
   if (a < 2 || a <= cfg.pre + 1.5) slow();
-  else if (video.native && s.live && a > cfg.pre + 4) { if (video.playbackRate !== 1.25) video.playbackRate = 1.25; }
-  else if (video.native && video.playbackRate > 1) { if (video.playbackRate !== 1.1) video.playbackRate = 1.1; }
   else if (a > hi && video.playbackRate === 1) video.playbackRate = 1.05;
 }
 setInterval(softCatchUp, 1000);
@@ -4223,6 +4231,7 @@ function runMethod() {
   }
 
   if (method === "exo") {
+    s.cuDone = false; s.cuT0 = 0;
     nvOn(true);
     Object.assign(nv, { id: ++nv.seq, pos: 0, at: performance.now(), buf: 0, dur: s.live ? Infinity : NaN, st: "idle", playing: false, paused: true, wait: false, seeking: false, speed: 1, err: null, dropped: 0, rendered: 0, live: s.live });
     ZP.load({ id: nv.id, url: u, ua: navigator.userAgent, live: s.live, hls: /\.m3u8/i.test(u), startMs: Math.round((s.resumeAt || 0) * 1000), muted: vel.muted })
