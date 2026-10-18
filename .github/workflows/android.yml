@@ -39,9 +39,24 @@ jobs:
           mkdir -p ~/.android
           cp tv/debug.keystore ~/.android/debug.keystore
 
-      - name: Compilar
+      - name: Compilar (con ExoPlayer)
+        id: build_exo
+        continue-on-error: true
         working-directory: android
         run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Compilar sin ExoPlayer (red de seguridad si lo anterior falla)
+        if: steps.build_exo.outcome == 'failure'
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          ZAPEO_NO_EXO: "1"
+        run: |
+          rm -rf android
+          npx cap add android
+          python3 tv/patch_android.py
+          cd android
           chmod +x gradlew
           ./gradlew assembleDebug
 
@@ -52,6 +67,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: Zapeo ${{ github.run_number }}
+          name: Zapeo ${{ github.run_number }}${{ steps.build_exo.outcome == 'failure' && ' (sin ExoPlayer)' || '' }}
           files: zapeo.apk
           make_latest: true
