@@ -38,7 +38,7 @@ build_number = os.environ.get("BUILD_NUMBER", "1")
 gradle = root / "app" / "build.gradle"
 g = gradle.read_text(encoding="utf-8")
 g = re.sub(r"versionCode\s+\d+", "versionCode " + build_number, g, count=1)
-g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.14.' + build_number + '"', g, count=1)
+g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.15.' + build_number + '"', g, count=1)
 
 # 6) Firmar SIEMPRE con la misma llave (tv/debug.keystore), para poder actualizar sin desinstalar.
 #    Se declara en el propio proyecto: así no depende de dónde busque Gradle la llave en el servidor.
@@ -68,7 +68,8 @@ if os.environ.get("ZAPEO_NO_EXO") != "1":
         g = g.replace("\ndependencies {\n", "\ndependencies {\n" + deps, 1)
     pkg = root / "app" / "src" / "main" / "java" / "com" / "zapeo" / "player"
     pkg.mkdir(parents=True, exist_ok=True)
-    shutil.copy("tv/ZapeoPlayerPlugin.java", pkg / "ZapeoPlayerPlugin.java")
+    for f in sorted(pathlib.Path("tv").glob("*.java")):
+        shutil.copy(f, pkg / f.name)
     (pkg / "MainActivity.java").write_text(
         "package com.zapeo.player;\n\n"
         "import android.os.Bundle;\n"

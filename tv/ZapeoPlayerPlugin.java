@@ -18,6 +18,7 @@ import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.exoplayer.DecoderCounters;
@@ -139,6 +140,7 @@ public class ZapeoPlayerPlugin extends Plugin {
         final boolean hls = call.getData().optBoolean("hls", false);
         final long startMs = call.getData().optLong("startMs", 0L);
         final long id = call.getData().optLong("id", 0L);
+        final long preMs = call.getData().optLong("preMs", 0L);
         final boolean muted = call.getData().optBoolean("muted", false);
         runOnUi(call, new Runnable() {
             @Override
@@ -162,7 +164,7 @@ public class ZapeoPlayerPlugin extends Plugin {
                 if (ua != null && ua.length() > 0) http.setUserAgent(ua);
 
                 DefaultLoadControl lc = new DefaultLoadControl.Builder()
-                        .setBufferDurationsMs(isLive ? 20000 : 30000, isLive ? 40000 : 60000, 2500, 5000)
+                        .setBufferDurationsMs(isLive ? (int) Math.max(20000L, preMs + 10000L) : 30000, isLive ? (int) Math.max(40000L, preMs + 25000L) : 60000, 2500, 5000)
                         .setPrioritizeTimeOverSizeThresholds(true)
                         .build();
 
@@ -170,8 +172,22 @@ public class ZapeoPlayerPlugin extends Plugin {
                         .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
                         .setEnableDecoderFallback(true);
 
+                // En directos .ts se recorta la ráfaga inicial del servidor: así se entra con el colchón elegido y no con 20 s de retraso
+                DataSource.Factory dsf = http;
+                if (isLive && !hls && preMs > 0) {
+                    final DataSource.Factory inner = http;
+                    final long target = preMs;
+                    final long maxWait = preMs + 4000L;
+                    dsf = new DataSource.Factory() {
+                        @Override
+                        public DataSource createDataSource() {
+                            return new TrimmingDataSource(inner.createDataSource(), target, maxWait);
+                        }
+                    };
+                }
+
                 player = new ExoPlayer.Builder(getContext(), rf)
-                        .setMediaSourceFactory(new DefaultMediaSourceFactory(http))
+                        .setMediaSourceFactory(new DefaultMediaSourceFactory(dsf))
                         .setLoadControl(lc)
                         .build();
                 player.setVideoSurfaceView(surface);
