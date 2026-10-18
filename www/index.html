@@ -247,6 +247,34 @@ body.pmode .top { display: none; }
 .empty p { margin: 0 0 12px; }
 .empty .btn { margin: 0 8px 8px 0; }
 
+/* Ficha de película o serie */
+#detail { padding: 0; gap: 0; }
+#detail .dbg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: blur(6px) brightness(.45); transform: scale(1.05); opacity: 0; transition: opacity .4s; }
+#detail .dbg.on { opacity: 1; }
+#detail::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.15)); pointer-events: none; }
+.dwrap { position: relative; z-index: 1; display: flex; gap: 3.5em; padding: 3.5em 4.5em; align-items: flex-start; }
+.dposter { flex: none; width: 19em; aspect-ratio: 2 / 3; border-radius: 1em; overflow: hidden; display: grid; place-items: center; font-weight: 700; box-shadow: 0 1em 3em rgba(0,0,0,.6); }
+.dini { font-size: 4em; }
+.dposter img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dmain { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1em; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+.dmain h1 { margin: 0; font-size: 3em; line-height: 1.1; font-weight: 700; }
+.dmeta { display: flex; flex-wrap: wrap; gap: .4em 1.4em; font-size: 1.5em; color: var(--fg); }
+.dmeta span.rate { color: #ffd166; font-weight: 600; }
+.dgenre { font-size: 1.25em; color: var(--muted); }
+.dplot { margin: .3em 0 0; font-size: 1.4em; line-height: 1.45; max-width: 46em; display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; }
+.dcast { margin: 0; font-size: 1.2em; line-height: 1.4; color: var(--muted); max-width: 46em; }
+.dcast b { color: var(--fg); font-weight: 600; }
+.dbtns { display: flex; flex-wrap: wrap; gap: 1em; margin-top: 1.2em; }
+#detail .dbtns .btn { font-size: 1.6em; padding: .55em 1.3em; border-radius: .5em; text-shadow: none; }
+#detail .dbtns .btn:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 .2em rgba(var(--accent-rgb), .55); transform: scale(1.05); }
+.ddiag { color: var(--muted); font-size: 1em; font-family: ui-monospace, Consolas, monospace; }
+/* Título arriba a la izquierda mientras se ve la barra de reproducción */
+#ptitle { position: absolute; left: 0; top: 0; z-index: 5; max-width: 75%; padding: 26px 40px 70px 32px; background: linear-gradient(180deg, rgba(0,0,0,.82), transparent); pointer-events: none; display: flex; flex-direction: column; gap: 4px; }
+#ptitle[hidden] { display: none; }
+#ptitle small { color: var(--accent); font-weight: 700; letter-spacing: .12em; font-size: 15px; text-transform: uppercase; }
+#ptitle b { font-size: 30px; line-height: 1.15; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+#ptitle span { font-size: 18px; color: #ddd; }
+
 /* Reproductor */
 .stage { border-right: 0; padding: 14px; gap: 12px; overflow-y: auto; }
 .screen {
@@ -425,6 +453,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
       <video id="video" playsinline controls></video>
       <div id="osd"><div class="num"></div><div class="name"></div><div class="grpname"></div></div>
       <div id="diag" hidden></div>
+      <div id="ptitle" hidden><small></small><b></b><span></span></div>
       <div id="seek" hidden>
         <div class="seekinfo"><span id="seekCur">0:00</span><span id="seekHint"></span><span id="seekTot">0:00</span></div>
         <div id="seekBar" tabindex="-1"><div id="seekPlayed"></div><div id="seekFill"></div><div id="seekThumb"></div></div>
@@ -478,6 +507,27 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
     <button class="tile" type="button" data-set="clear" id="btnClearHist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg><span>Borrar historial<small id="clrSub"></small></span></button>
   </div>
   <div class="hints"><span>Zapeo <b id="stVer"></b></span><span><kbd>Atrás</kbd>volver al inicio</span></div>
+</section>
+
+<section class="ov" id="detail" hidden aria-label="Ficha">
+  <div class="dbg" id="dBg" aria-hidden="true"></div>
+  <div class="dwrap">
+    <div class="dposter" id="dPoster"></div>
+    <div class="dmain">
+      <h1 id="dTitle"></h1>
+      <div class="dmeta" id="dMeta"></div>
+      <div class="dgenre" id="dGenre"></div>
+      <p class="dplot" id="dPlot"></p>
+      <p class="dcast" id="dCast"></p>
+      <div class="dbtns" id="dBtns">
+        <button class="btn primary" type="button" id="dPlay">▶ Ver</button>
+        <button class="btn" type="button" id="dTrailer" hidden>Tráiler</button>
+        <button class="btn" type="button" id="dFav">☆ Favoritos</button>
+        <button class="btn" type="button" id="dBack">Volver</button>
+      </div>
+      <small class="ddiag" id="dDiag" hidden></small>
+    </div>
+  </div>
 </section>
 
 <dialog id="themeDlg">
@@ -2894,7 +2944,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.15.1";
+const VERSION = "0.16.0";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3856,6 +3906,217 @@ function closeShow() {
   focusEl(idx >= 0 ? document.querySelector(`.ch[data-i="${idx}"]`) : null);
 }
 
+/* ---------- Ficha de película o serie (datos de la lista Xtream) ---------- */
+// Las listas Xtream guardan en el servidor la sinopsis, el reparto, etc. La dirección de cada título
+// (…/movie/usuario/clave/123.mkv) trae lo necesario para pedirlos; si no hay datos se muestra una ficha básica.
+const infoMem = new Map();   // clave → datos ya leídos (o promesa en curso)
+const INFO_TTL = 14 * 864e5;
+const simp = (t) => norm(t).replace(/\(.*?\)|\[.*?\]/g, " ").replace(/^[a-z]{2,3}\s*[-|:]\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+function xtreamOf(it) {
+  const m = String(it && it.url).match(/^(https?:\/\/[^/]+)\/(movie|series)\/([^/]+)\/([^/]+)\/(\d+)(?:\.[a-z0-9]+)?(?:[?#].*)?$/i);
+  if (!m) return null;
+  let user = m[3], pass = m[4];
+  try { user = decodeURIComponent(user); pass = decodeURIComponent(pass); } catch {}
+  return { base: m[1], user, pass, id: m[5] };
+}
+function withTimeout(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("tiempo agotado")), ms))]);
+}
+async function xApi(x, action, extra) {
+  let u = `${x.base}/player_api.php?username=${encodeURIComponent(x.user)}&password=${encodeURIComponent(x.pass)}&action=${action}`;
+  for (const k in extra || {}) u += `&${k}=${encodeURIComponent(extra[k])}`;
+  const txt = await withTimeout(fetchText(u), 15000);
+  try { return JSON.parse(txt); } catch { throw new Error("respuesta no válida"); }
+}
+// Memoria, luego IndexedDB, luego red. Lo que falla no se guarda.
+function xCached(key, fetcher, ttl) {
+  if (infoMem.has(key)) return infoMem.get(key);
+  const pr = (async () => {
+    const raw = await cache.get("info:" + key);
+    if (raw) { try { const o = JSON.parse(raw); if (o && Date.now() - o.t < ttl) return o.d; } catch {} }
+    const d = await fetcher();
+    cache.set("info:" + key, JSON.stringify({ t: Date.now(), d })).catch(() => {});
+    return d;
+  })();
+  infoMem.set(key, pr);
+  pr.catch(() => infoMem.delete(key));
+  return pr;
+}
+const slimSeries = (a) => (Array.isArray(a) ? a : []).map((s) => ({
+  name: s.name, series_id: s.series_id, plot: s.plot, cast: s.cast, director: s.director, genre: s.genre,
+  releaseDate: s.releaseDate || s.release_date, rating: s.rating, cover: s.cover, backdrop_path: s.backdrop_path,
+  youtube_trailer: s.youtube_trailer, episode_run_time: s.episode_run_time,
+}));
+function pickSeries(list, want) {
+  if (!Array.isArray(list) || !want) return null;
+  let f = list.find((s) => simp(s.name) === want);
+  if (!f) f = list.find((s) => { const a = simp(s.name); return a && (a.startsWith(want + " ") || want.startsWith(a + " ")) && Math.min(a.length, want.length) / Math.max(a.length, want.length) > 0.6; });
+  return f || null;
+}
+async function seriesLookup(x, show) {
+  const want = simp(show.name);
+  let found = null;
+  try {
+    const cats = await xCached(`${x.base}|${x.user}|scat`, () => xApi(x, "get_series_categories"), 7 * 864e5);
+    const g = simp(show.group);
+    const c = Array.isArray(cats) && cats.find((c) => simp(c.category_name) === g);
+    if (c) {
+      const l = await xCached(`${x.base}|${x.user}|s|${c.category_id}`, async () => slimSeries(await xApi(x, "get_series", { category_id: c.category_id })), 3 * 864e5);
+      found = pickSeries(l, want);
+    }
+  } catch {}
+  if (!found) {
+    const l = await xCached(`${x.base}|${x.user}|sall`, async () => slimSeries(await xApi(x, "get_series")), 3 * 864e5);
+    found = pickSeries(l, want);
+  }
+  return found;
+}
+function normInfo(i) {
+  i = i || {};
+  const one = (v) => { v = Array.isArray(v) ? v[0] : v; v = v === undefined || v === null ? "" : String(v).trim(); return v === "0" || v === "[]" ? "" : v; };
+  const pick = (...vs) => { for (const v of vs) { const t = one(v); if (t) return t; } return ""; };
+  let sec = +one(i.duration_secs) || 0;
+  if (!sec) {
+    const d = one(i.duration);
+    const m = d.match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
+    if (m) sec = m[3] !== undefined ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2];
+    else if (+d > 0) sec = +d * 60;
+  }
+  if (!sec && +one(i.episode_run_time) > 0) sec = +one(i.episode_run_time) * 60;
+  const r = parseFloat(one(i.rating));
+  const y = (pick(i.releasedate, i.releaseDate, i.release_date, i.year).match(/\d{4}/) || [""])[0];
+  return {
+    plot: pick(i.plot, i.description), cast: pick(i.cast, i.actors), director: pick(i.director), genre: pick(i.genre),
+    rating: r > 0 ? r.toFixed(1) : "", year: y, sec, backdrop: pick(i.backdrop_path, i.backdrop),
+    cover: pick(i.movie_image, i.cover_big, i.cover), trailer: pick(i.youtube_trailer),
+  };
+}
+// Devuelve { info, note }: info = datos o null; note = lo que pasó (para el modo diagnóstico).
+async function getInfo(item) {
+  const isShow = item.kind === "show";
+  const probe = isShow ? item.episodes[0] : item;
+  const x = xtreamOf(probe);
+  if (!x) return { info: null, note: "la dirección no es de tipo Xtream (/movie/usuario/clave/id)" };
+  const t0 = Date.now();
+  try {
+    let raw;
+    if (isShow) raw = await seriesLookup(x, item);
+    else {
+      const r = await xCached(`${x.base}|${x.user}|m|${x.id}`, () => xApi(x, "get_vod_info", { vod_id: x.id }), INFO_TTL);
+      raw = r && r.info;
+    }
+    const info = raw ? normInfo(raw) : null;
+    const has = info && (info.plot || info.cast || info.genre || info.sec || info.rating || info.year);
+    return { info: has ? info : null, note: (isShow ? "serie" : "película " + x.id) + (has ? " · datos ok" : " · sin datos en el servidor") + " · " + ((Date.now() - t0) / 1000).toFixed(1) + " s" };
+  } catch (e) {
+    return { info: null, note: (isShow ? "serie" : "película " + x.id) + " · error: " + (e && e.message || e) };
+  }
+}
+
+const det = { item: null, list: null, seq: 0 };
+const fmtDur = (sec) => { const m = Math.round(sec / 60), h = Math.floor(m / 60); return h ? h + " h " + (m % 60 ? (m % 60) + " min" : "") : m + " min"; };
+function trailerUrl(t) {
+  t = String(t || "").trim();
+  if (/^https?:\/\//i.test(t)) return t;
+  if (/^[\w-]{11}$/.test(t)) return "https://www.youtube.com/watch?v=" + t;
+  return "";
+}
+function openExternal(u) {
+  if (isNative()) location.href = u; // la app lo entrega al sistema (YouTube, navegador…)
+  else window.open(u, "_blank", "noopener");
+}
+function updateDetFav() {
+  const it = det.item;
+  const on = !!it && state.favs.has(favKey(it));
+  $("#dFav").textContent = on ? "★ En favoritos" : "☆ Favoritos";
+}
+function renderDetail(info, note) {
+  const it = det.item;
+  const isShow = it.kind === "show";
+  const meta = [];
+  if (info && info.rating) meta.push(`<span class="rate">★ ${esc(info.rating)}</span>`);
+  const y = (info && info.year) || (String(it.name).match(/\((\d{4})\)/) || [])[1];
+  if (y) meta.push(`<span>${esc(y)}</span>`);
+  if (info && info.sec) meta.push(`<span>${esc(fmtDur(info.sec))}</span>`);
+  if (isShow) meta.push(`<span>${it.seasons > 1 || it.episodes[0].season ? it.seasons + (it.seasons === 1 ? " temporada · " : " temporadas · ") : ""}${it.episodes.length} ${it.episodes.length === 1 ? "episodio" : "episodios"}</span>`);
+  else if (!(info && info.sec)) meta.push(`<span>${esc(it.group)}</span>`);
+  $("#dMeta").innerHTML = meta.join("");
+  $("#dGenre").textContent = (info && info.genre) || (isShow || (info && info.sec) ? it.group : "");
+  $("#dPlot").textContent = info && info.plot ? info.plot : note || "";
+  const cast = info && info.cast ? info.cast.split(/\s*,\s*/).slice(0, 12).join(", ") : "";
+  $("#dCast").innerHTML = (info && info.director ? `<b>Director:</b> ${esc(info.director)}<br>` : "") + (cast ? `<b>Reparto:</b> ${esc(cast)}` : "");
+  const tr = info ? trailerUrl(info.trailer) : "";
+  $("#dTrailer").hidden = !tr;
+  $("#dTrailer").dataset.url = tr;
+  if (info && info.backdrop && /^https?:/i.test(info.backdrop)) {
+    const bg = $("#dBg");
+    bg.style.backgroundImage = `url("${info.backdrop.replace(/"/g, "%22")}")`;
+    bg.classList.add("on");
+  }
+  if (info && info.cover && !it.logo && !$("#dPoster img")) $("#dPoster").innerHTML = `<img src="${esc(info.cover)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
+  const dg = $("#dDiag");
+  dg.hidden = !cfg.diag;
+  dg.textContent = note && info ? "info: " + note : note ? "info: " + note : "";
+}
+function openDetail(item, list) {
+  skHide(true);
+  const seq = ++det.seq;
+  det.item = item;
+  det.list = list;
+  const isShow = item.kind === "show";
+  const h = hue(item.name);
+  $("#dTitle").textContent = item.name;
+  $("#dPoster").style.background = `linear-gradient(160deg,hsl(${h},40%,30%),hsl(${(h + 40) % 360},40%,15%))`;
+  $("#dPoster").innerHTML = item.logo
+    ? `<img src="${esc(item.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'dini',textContent:this.dataset.i}))" data-i="${esc(Array.from(item.name)[0] || "?")}">`
+    : `<span class="dini">${esc(Array.from(item.name)[0] || "?")}</span>`;
+  $("#dBg").classList.remove("on");
+  $("#dBg").style.backgroundImage = "";
+  $("#dPlay").textContent = isShow ? "▶ Ver episodios" : "▶ Ver";
+  updateDetFav();
+  renderDetail(null, "Cargando datos…");
+  $("#dDiag").hidden = true;
+  $("#home").hidden = true;
+  $("#settings").hidden = true;
+  $("#detail").hidden = false;
+  focusEl($("#dPlay"));
+  getInfo(item).then((r) => {
+    if (seq !== det.seq || $("#detail").hidden) return;
+    renderDetail(r.info, r.info ? "" : "No hay más datos de este título en la lista.");
+    $("#dDiag").hidden = !cfg.diag;
+    $("#dDiag").textContent = "info: " + r.note;
+  });
+}
+function closeDetail() {
+  const it = det.item;
+  det.seq++;
+  $("#detail").hidden = true;
+  if (!state.channels.length) return;
+  const idx = state.view.indexOf(it);
+  focusEl(idx >= 0 ? document.querySelector(`.ch[data-i="${idx}"]`) : null);
+  if (!document.activeElement || document.activeElement === document.body) focusChannelList();
+}
+$("#dPlay").addEventListener("click", () => {
+  const it = det.item, list = det.list;
+  if (!it) return;
+  $("#detail").hidden = true;
+  det.seq++;
+  if (it.kind === "show") openShow(it);
+  else openItem(it, list);
+});
+$("#dTrailer").addEventListener("click", () => {
+  const u = $("#dTrailer").dataset.url;
+  if (u) { toast("Abriendo el tráiler…"); openExternal(u); }
+});
+$("#dFav").addEventListener("click", () => {
+  const it = det.item;
+  if (!it) return;
+  toggleFav(it);
+  updateDetFav();
+});
+$("#dBack").addEventListener("click", closeDetail);
+
 /* ---------- Reproducción ---------- */
 const vel = $("#video");
 
@@ -4137,6 +4398,7 @@ function stopPlayback() {
 function showOSD() {
   const c = state.current;
   if (!c) return;
+  if (!$("#ptitle").hidden) return;
   let num = "";
   if (c.type === "live") {
     const idx = state.playlist.indexOf(c);
@@ -4552,11 +4814,22 @@ function skUpdate() {
   const diff = tgt - cur;
   $("#seekHint").textContent = sk.pending !== null && Math.abs(diff) >= 1 ? (diff > 0 ? "+" : "−") + fmtT(Math.abs(diff)) + "  →  " + fmtT(tgt) : "";
 }
+// Título arriba a la izquierda mientras la barra está a la vista (pausa o barra abierta)
+function ptShow(on) {
+  const c = state.current, el = $("#ptitle");
+  if (!on || !c || c.type === "live") { el.hidden = true; return; }
+  el.querySelector("small").textContent = c.type === "series" ? epTag(c) || "Serie" : "Película";
+  el.querySelector("b").textContent = c.type === "series" && c._show ? c._show.name : c.name;
+  el.querySelector("span").textContent = c.type === "series" ? c.epTitle || "" : "";
+  el.hidden = false;
+  $("#osd").classList.remove("show");
+}
 function skShow(mode) {
   const c = state.current;
   sk.mode = mode;
   $("#seekBtns").hidden = !(mode === "bar" && c && c.type === "series");
   $("#seek").hidden = false;
+  ptShow(true);
   skUpdate();
 }
 const isVodPlaying = () => !!(state.current && state.current.type !== "live" && session && session.ok);
@@ -4580,6 +4853,7 @@ function skHide(final) {
   const a = document.activeElement;
   if (a && $("#seek").contains(a)) a.blur();
   $("#seek").hidden = true;
+  ptShow(false);
   if (!final && isFs() && video.paused && !video.ended && isVodPlaying()) skShow("peek"); // en pausa la barra se queda a la vista
 }
 function skAutoHide(ms) {
@@ -4737,7 +5011,9 @@ $("#chlist").addEventListener("click", async (e) => {
   if (ch.dataset.back !== undefined) { closeShow(); return; }
   const item = state.view[+ch.dataset.i];
   if (!item) return;
-  if (item.kind === "show") openShow(item);
+  const inCont = state.group[state.tab] === "__cont";
+  if (state.tab !== "live" && !state.show && !inCont) openDetail(item, state.view); // películas y series: primero la ficha
+  else if (item.kind === "show") openShow(item);
   else openItem(item, state.view);
 });
 
@@ -4832,8 +5108,8 @@ document.addEventListener("keydown", (e) => {
   if ($("dialog[open]")) { dialogNav(e); return; }
   if (ovOpen()) {
     // inicio y ajustes: flechas entre botones; Atrás sube un nivel
-    const ov = !$("#settings").hidden ? $("#settings") : $("#home");
-    if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); ov === $("#home") ? askExit() : showHome(); }
+    const ov = !$("#detail").hidden ? $("#detail") : !$("#settings").hidden ? $("#settings") : $("#home");
+    if (e.key === "Escape" || e.key === "Backspace") { e.preventDefault(); ov === $("#detail") ? closeDetail() : ov === $("#home") ? askExit() : showHome(); }
     else dialogNav(e, ov);
     return;
   }
@@ -5028,8 +5304,8 @@ $("#themeCancel").addEventListener("click", () => $("#themeDlg").close());
 $("#themeDlg").addEventListener("close", () => { applyTheme(themeSaved); renderSettings(); }); // si no se aplicó, vuelve al tema de antes
 
 /* ---------- Inicio y ajustes ---------- */
-const ovOpen = () => !$("#home").hidden || !$("#settings").hidden;
-function hideOverlays() { $("#home").hidden = true; $("#settings").hidden = true; }
+const ovOpen = () => !$("#home").hidden || !$("#settings").hidden || !$("#detail").hidden;
+function hideOverlays() { $("#home").hidden = true; $("#settings").hidden = true; if (!$("#detail").hidden) { det.seq++; $("#detail").hidden = true; } }
 function hue(str) { let h = 0; for (const c of String(str)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 let shelfCur = [];
 function renderHome() {
@@ -5177,6 +5453,7 @@ window.addEventListener("load", () => {
     if (open) { open.close(); return; }
     if (sk.mode === "bar") skHide();
     else if (isFs()) toggleFs();
+    else if (!$("#detail").hidden) closeDetail();
     else if (!$("#settings").hidden) showHome();
     else if (!$("#home").hidden) askExit();
     else backMain();
