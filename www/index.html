@@ -262,6 +262,13 @@ body.pfs .screen {
 /* Mientras se ve a pantalla completa, lo de debajo no se pinta: menos trabajo para la tele */
 body.pfs .top, body.pfs .tabs, body.pfs main > .panel:not(.stage), body.pfs .stage > :not(.screen) { visibility: hidden; }
 video { width: 100%; height: 100%; display: block; background: #000; }
+/* Reproductor nativo (ExoPlayer): el vídeo va detrás de la web, que se vuelve transparente; el fondo del tema tiene un hueco donde va la imagen */
+#bgfx { display: none; }
+html.nv, html.nv body { background: transparent !important; background-image: none !important; }
+html.nv #bgfx { display: block; position: fixed; inset: 0; z-index: -1; pointer-events: none; background-color: var(--bg); background-image: var(--bgimg); }
+html.nv body.pfs #bgfx { display: none; }
+html.nv .screen { background: transparent; border-radius: 0; }
+html.nv video { display: none; }
 #osd {
   position: absolute; left: 0; top: 0; padding: 14px 20px;
   background: linear-gradient(90deg, rgba(0,0,0,.75), transparent);
@@ -383,6 +390,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
 </style>
 </head>
 <body>
+<div id="bgfx"></div>
 
 <header class="top" id="top">
   <div class="brand"><i></i>Zapeo</div>
@@ -516,6 +524,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
       </div></div>
     <div class="advrow"><span>Acercarse al directo yendo un poco más rápido</span><button class="btn sm" type="button" id="btnSoft"></button></div>
     <div class="advrow"><span>Perseguir el directo con saltos (provoca cortes)</span><button class="btn sm" type="button" id="btnChase"></button></div>
+    <div class="advrow" id="rowEngine" hidden><span>Reproductor nativo (ExoPlayer)</span><button class="btn sm" type="button" id="btnEngine"></button></div>
     <div class="advrow"><span>Panel de diagnóstico sobre la imagen</span><button class="btn sm" type="button" id="btnDiag"></button></div>
   </div>
   <p class="ver">Zapeo <span id="ver"></span></p>
@@ -2884,7 +2893,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.13";
+const VERSION = "0.14";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3466,6 +3475,7 @@ const cfg = {
   chase: store.get("zapeo.chase", "0") === "1", // la librería salta hacia delante para acercarse al directo (provoca cortes: apagado por defecto)
   soft: store.get("zapeo.soft", "1") !== "0", // acercarse al directo yendo un 5 % más rápido, sin saltos
   diag: store.get("zapeo.diag", "0") === "1",
+  exo: store.get("zapeo.engine", "exo") !== "web", // reproductor nativo de Android (ExoPlayer) cuando está disponible
 };
 const reLive = () => Math.max(2, Math.round(cfg.pre * 0.66)); // colchón al recuperarse de un corte
 function renderAdv() {
@@ -3476,6 +3486,9 @@ function renderAdv() {
   $("#btnSoft").classList.toggle("on", cfg.soft);
   $("#btnDiag").textContent = cfg.diag ? "Sí" : "No";
   $("#btnDiag").classList.toggle("on", cfg.diag);
+  $("#rowEngine").hidden = !nv.avail;
+  $("#btnEngine").textContent = cfg.exo ? "Sí" : "No";
+  $("#btnEngine").classList.toggle("on", cfg.exo);
 }
 $("#advBox").addEventListener("click", (e) => {
   const b = e.target.closest("button");
@@ -3483,6 +3496,7 @@ $("#advBox").addEventListener("click", (e) => {
   if (b.dataset.pre) { cfg.pre = +b.dataset.pre; store.set("zapeo.pre", String(cfg.pre)); }
   else if (b.id === "btnChase") { cfg.chase = !cfg.chase; store.set("zapeo.chase", cfg.chase ? "1" : "0"); }
   else if (b.id === "btnSoft") { cfg.soft = !cfg.soft; store.set("zapeo.soft", cfg.soft ? "1" : "0"); }
+  else if (b.id === "btnEngine") { cfg.exo = !cfg.exo; store.set("zapeo.engine", cfg.exo ? "exo" : "web"); }
   else if (b.id === "btnDiag") { cfg.diag = !cfg.diag; store.set("zapeo.diag", cfg.diag ? "1" : "0"); updateDiag(); }
   renderAdv();
 });
@@ -3840,7 +3854,134 @@ function closeShow() {
 }
 
 /* ---------- Reproducción ---------- */
-const video = $("#video");
+const vel = $("#video");
+
+/* ---------- Vídeo: elemento web o reproductor nativo (ExoPlayer) ----------
+   El resto de la app usa «video» como si fuera un <video>. Si el reproductor nativo está activo, las
+   lecturas y órdenes van al plugin de Android y los eventos llegan de él. */
+const ZP = (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.ZapeoPlayer) || null;
+const bus = new EventTarget();
+const emit = (t) => bus.dispatchEvent(new Event(t));
+const nv = {
+  avail: false, on: false, id: 0, seq: 0,
+  pos: 0, at: 0, buf: 0, dur: NaN, st: "idle", playing: false, paused: true, wait: false,
+  seeking: false, seekT: 0, seekTo: 0, speed: 1, err: null, dropped: 0, rendered: 0, live: false,
+};
+["playing", "waiting", "pause", "play", "ended", "error", "timeupdate", "seeking", "seeked", "loadedmetadata", "durationchange"]
+  .forEach((t) => vel.addEventListener(t, () => { if (!nv.on) emit(t); }));
+const video = {
+  addEventListener: (t, f, o) => bus.addEventListener(t, f, o),
+  removeEventListener: (t, f, o) => bus.removeEventListener(t, f, o),
+  get native() { return nv.on; },
+  get currentTime() {
+    if (!nv.on) return vel.currentTime;
+    const dt = nv.playing ? Math.min(0.6, ((performance.now() - nv.at) / 1000) * nv.speed) : 0;
+    return nv.pos + dt;
+  },
+  set currentTime(v) { if (nv.on) nvSeek(v); else vel.currentTime = v; },
+  get paused() { return nv.on ? nv.paused : vel.paused; },
+  get ended() { return nv.on ? nv.st === "ended" : vel.ended; },
+  get seeking() { return nv.on ? nv.seeking : vel.seeking; },
+  get duration() { return nv.on ? nv.dur : vel.duration; },
+  get buffered() { return nv.on ? { length: 1, start: () => 0, end: () => nv.buf } : vel.buffered; },
+  get playbackRate() { return nv.on ? nv.speed : vel.playbackRate; },
+  set playbackRate(v) {
+    if (nv.on) { if (v !== nv.speed) { nv.speed = v; ZP.setSpeed({ speed: v }).catch(() => {}); } }
+    else vel.playbackRate = v;
+  },
+  get muted() { return vel.muted; },
+  set muted(v) { vel.muted = v; if (nv.on) ZP.setMuted({ muted: !!v }).catch(() => {}); },
+  get error() { return nv.on ? nv.err : vel.error; },
+  set src(v) { vel.src = v; },
+  play() {
+    if (!nv.on) return vel.play();
+    nv.paused = false;
+    ZP.play().catch(() => {});
+    emit("play");
+    return Promise.resolve();
+  },
+  pause() {
+    if (!nv.on) return vel.pause();
+    if (!nv.paused) { nv.paused = true; ZP.pause().catch(() => {}); emit("pause"); }
+  },
+  getVideoPlaybackQuality() {
+    return nv.on ? { droppedVideoFrames: nv.dropped, totalVideoFrames: nv.dropped + nv.rendered } : vel.getVideoPlaybackQuality ? vel.getVideoPlaybackQuality() : null;
+  },
+  removeAttribute: (a) => vel.removeAttribute(a),
+  load: () => vel.load(),
+  canPlayType: (t) => vel.canPlayType(t),
+};
+
+function nvOn(on) {
+  if (on === nv.on) return;
+  nv.on = on;
+  document.documentElement.classList.toggle("nv", on);
+  if (!on && ZP) { nv.id = 0; ZP.stop().catch(() => {}); }
+  if (!on) { nv.playing = false; nv.paused = true; nv.speed = 1; lastRect = ""; const b = $("#bgfx"); if (b) b.style.clipPath = ""; }
+}
+function nvSeek(v) {
+  if (!nv.on || !isFinite(v)) return;
+  if (nv.live) return; // un directo en bruto (.ts) no admite saltos; hacerlo volvería a conectar
+  nv.seeking = true; nv.seekT = performance.now(); nv.seekTo = v;
+  nv.pos = v; nv.at = performance.now();
+  emit("seeking");
+  ZP.seekTo({ ms: Math.round(v * 1000) }).catch(() => {});
+}
+function nvApply(d) {
+  if (!nv.on || !d || d.id !== nv.id) return;
+  const now = performance.now();
+  const prevDur = nv.dur;
+  nv.pos = d.pos; nv.at = now; nv.buf = d.buf; nv.speed = d.speed || nv.speed;
+  nv.dur = d.dur > 0 ? d.dur : nv.live ? Infinity : NaN;
+  if (d.dropped !== undefined) { nv.dropped = d.dropped; nv.rendered = d.rendered; }
+  if (nv.dur !== prevDur && !(isNaN(nv.dur) && isNaN(prevDur))) { emit("loadedmetadata"); emit("durationchange"); }
+  const was = nv.st;
+  nv.st = d.state;
+  if (d.state === "ended" && was !== "ended") { emit("ended"); return; }
+  if (d.playing && !nv.playing) { nv.playing = true; nv.wait = false; emit("playing"); }
+  else if (!d.playing && nv.playing) nv.playing = false;
+  if (d.state === "buffering" && d.playWhenReady && !nv.wait) { nv.wait = true; emit("waiting"); }
+  else if (d.state === "ready") nv.wait = false;
+  if (nv.seeking && d.state === "ready" && now - nv.seekT > 200) { nv.seeking = false; emit("seeked"); }
+  else if (nv.seeking && now - nv.seekT > 5000) { nv.seeking = false; emit("seeked"); }
+  if (nv.playing) emit("timeupdate");
+}
+function nvError(d) {
+  const c = d.errorCode || 0;
+  const code = d.http || (c >= 2000 && c < 3000) ? 2 : c >= 4000 && c < 5000 ? 3 : 4;
+  nv.err = { code, message: (d.error || "") + (d.http ? " HTTP " + d.http : "") + (d.errorMsg ? " · " + d.errorMsg : "") };
+  emit("error");
+}
+if (ZP) {
+  ZP.addListener("tick", (d) => nvApply(d));
+  ZP.addListener("state", (d) => {
+    if (!d || d.id !== nv.id) return;
+    nvApply(d);
+    if (d.error) nvError(d);
+  });
+  ZP.isAvailable().then((r) => { nv.avail = !!(r && r.ok); renderAdv(); }).catch(() => {});
+}
+
+// Rectángulo donde va el vídeo nativo y hueco en el fondo del tema
+let lastRect = "";
+function syncNative(force) {
+  if (!nv.on || !ZP) return;
+  const r = $("#screen").getBoundingClientRect();
+  const full = document.body.classList.contains("pfs");
+  const vis = r.width > 40 && r.height > 20 && r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight;
+  const d = window.devicePixelRatio || 1;
+  const bg = $("#bgfx");
+  if (vis && !full) {
+    const x1 = Math.round(r.left), y1 = Math.round(r.top), x2 = Math.round(r.right), y2 = Math.round(r.bottom);
+    bg.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${x1}px ${y1}px, ${x2}px ${y1}px, ${x2}px ${y2}px, ${x1}px ${y2}px, ${x1}px ${y1}px)`;
+  } else bg.style.clipPath = "";
+  const key = vis ? [r.left, r.top, r.width, r.height].map(Math.round).join(",") : "off";
+  if (key === lastRect && !force) return;
+  lastRect = key;
+  ZP.setRect({ x: Math.round(r.left * d), y: Math.round(r.top * d), w: Math.round(r.width * d), h: Math.round(r.height * d), show: vis }).catch(() => {});
+}
+setInterval(syncNative, 250);
+window.addEventListener("resize", () => syncNative(true));
 let hls = null, mp = null, osdTimer = null, token = 0, session = null, watch = null;
 
 // Buffer: pequeño en directo (arranca rápido y gasta poca memoria), mayor en películas.
@@ -3893,7 +4034,7 @@ function holdUntilBuffered(target, maxMs, trim) {
     if ((a >= target && calm) || (waited >= maxMs && a > 0.3) || waited >= maxMs + 6000) {
       clearInterval(preTimer);
       // Aún no se ve imagen: si ha llegado una ráfaga de vídeo, se empieza cerca del directo, sin que se note ningún salto
-      if (trim && video.buffered.length) {
+      if (trim && !video.native && video.buffered.length) {
         const i = video.buffered.length - 1, end = video.buffered.end(i);
         if (end - Math.max(video.currentTime, video.buffered.start(i)) > target + 2) {
           dg.skip = true;
@@ -3912,7 +4053,7 @@ function updateDiag() {
   const q = video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality() : null;
   const m = session.plan[Math.min(session.i, session.plan.length - 1)];
   el.textContent = [
-    "Método: " + m + (session.live ? " (directo)" : ""),
+    "Método: " + (m === "exo" ? "ExoPlayer (nativo)" : m) + (session.live ? " (directo)" : ""),
     "Colchón: " + aheadSec().toFixed(1) + " s" + (session.live ? "  (objetivo " + cfg.pre + ")" : ""),
     "Imágenes descartadas: " + (q ? q.droppedVideoFrames + " de " + q.totalVideoFrames : "—"),
     "Velocidad: " + video.playbackRate.toFixed(2) + "x",
@@ -3938,6 +4079,8 @@ function softCatchUp() {
   if (!cfg.soft || !s.ok || video.paused || video.seeking) { slow(); return; }
   const a = aheadSec(), hi = Math.max(cfg.pre * 2, cfg.pre + 6);
   if (a < 2 || a <= cfg.pre + 1.5) slow();
+  else if (video.native && s.live && a > cfg.pre + 4) { if (video.playbackRate !== 1.25) video.playbackRate = 1.25; }
+  else if (video.native && video.playbackRate > 1) { if (video.playbackRate !== 1.1) video.playbackRate = 1.1; }
   else if (a > hi && video.playbackRate === 1) video.playbackRate = 1.05;
 }
 setInterval(softCatchUp, 1000);
@@ -3948,8 +4091,9 @@ function stopPlayer() {
   watch = null;
   if (hls) { hls.destroy(); hls = null; }
   if (mp) { try { mp.destroy(); } catch {} mp = null; }
-  video.removeAttribute("src");
-  video.load();
+  nvOn(false);
+  vel.removeAttribute("src");
+  vel.load();
 }
 
 function stopPlayback() {
@@ -4012,6 +4156,11 @@ function failMsg(s) {
 }
 
 function buildPlan(u) {
+  const base = buildPlanWeb(u);
+  if (nv.avail && cfg.exo) base.plan = ["exo"].concat(base.plan);
+  return base;
+}
+function buildPlanWeb(u) {
   const path = u.split("?")[0].toLowerCase();
   const ext = (path.match(/\.([a-z0-9]{2,5})$/) || [])[1] || "";
   if (/m3u8/i.test(u)) return { ext: ext || "m3u8", plan: ["hls", "native"] };
@@ -4068,12 +4217,23 @@ function runMethod() {
     watchdog = setTimeout(() => fail("sin respuesta en " + wd + " s"), wd * 1000);
     video.addEventListener("playing", () => clearTimeout(watchdog), { once: true });
   }
-  if (s.resumeAt > 1) {
+  if (s.resumeAt > 1 && method !== "exo") {
     const at = s.resumeAt;
     video.addEventListener("loadedmetadata", () => { try { video.currentTime = at; } catch {} }, { once: true });
   }
 
-  if (method === "hls") {
+  if (method === "exo") {
+    nvOn(true);
+    Object.assign(nv, { id: ++nv.seq, pos: 0, at: performance.now(), buf: 0, dur: s.live ? Infinity : NaN, st: "idle", playing: false, paused: true, wait: false, seeking: false, speed: 1, err: null, dropped: 0, rendered: 0, live: s.live });
+    ZP.load({ id: nv.id, url: u, ua: navigator.userAgent, live: s.live, hls: /\.m3u8/i.test(u), startMs: Math.round((s.resumeAt || 0) * 1000), muted: vel.muted })
+      .then(() => {
+        if (my !== token || run !== s.run) return;
+        syncNative(true);
+        if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000, false);
+        else video.play();
+      })
+      .catch((e) => fail("nativo: " + ((e && e.message) || e)));
+  } else if (method === "hls") {
     if (!(window.Hls && Hls.isSupported())) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) { video.src = u; return; }
       return fail("hls.js no disponible");
@@ -4081,7 +4241,7 @@ function runMethod() {
     let retries = 0;
     hls = new Hls(s.resumeAt > 1 ? { ...HLS_CFG, startPosition: s.resumeAt } : HLS_CFG);
     hls.loadSource(u);
-    hls.attachMedia(video);
+    hls.attachMedia(vel);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { if (s.live) holdUntilBuffered(cfg.pre, cfg.pre * 1000 + 4000, true); else video.play().catch(() => {}); });
     hls.on(Hls.Events.ERROR, (_e, d) => {
       if (!d.fatal) return;
@@ -4092,7 +4252,7 @@ function runMethod() {
   } else if (method === "mpegts") {
     if (!(window.mpegts && mpegts.isSupported())) return fail("mpegts.js no disponible");
     mp = mpegts.createPlayer({ type: u.split("?")[0].toLowerCase().endsWith(".flv") ? "flv" : "mpegts", isLive: true, url: u }, mpegtsCfg());
-    mp.attachMediaElement(video);
+    mp.attachMediaElement(vel);
     mp.on(mpegts.Events.ERROR, (type, detail, info) =>
       fail(type + "/" + detail + (info && info.code ? " " + info.code : "") + (info && info.msg ? " " + info.msg : "")));
     mp.load();
@@ -4501,6 +4661,7 @@ function toggleFs() {
   if (isFs()) { skHide(true); pauseVodOnExit(); }
   if (isNative()) {
     document.body.classList.toggle("pfs");
+    syncNative(true);
     updateFsBtn();
     if (isFs()) showOSD();
     else { refreshProgress(); focusChannelList(); }
@@ -4559,7 +4720,7 @@ $("#chlist").addEventListener("click", async (e) => {
 
 $("#btnFav").addEventListener("click", () => toggleFav(favTarget(state.current)));
 $("#btnFs").addEventListener("click", toggleFs);
-video.addEventListener("dblclick", toggleFs);
+vel.addEventListener("dblclick", toggleFs);
 document.addEventListener("fullscreenchange", () => {
   updateFsBtn();
   if (!document.fullscreenElement) { skHide(true); pauseVodOnExit(); refreshProgress(); focusChannelList(); } // al salir, vuelves al elemento que estabas viendo
