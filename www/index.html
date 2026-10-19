@@ -472,7 +472,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
   </section>
 </main>
 
-<section class="ov" id="home" hidden aria-label="Inicio">
+<section class="ov" id="home" aria-label="Inicio">
   <div class="ovtop">
     <div class="logo2"><svg viewBox="0 0 44 44" role="img" aria-label="Zapeo"><circle cx="22" cy="22" r="20" fill="none" stroke="var(--accent)" stroke-width="3"/><path d="M17 13.5 L31 22 L17 30.5 Z" fill="var(--accent)"/></svg><span>Zapeo</span></div>
     <div class="ovright">
@@ -565,7 +565,7 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
   </div>
   <div id="advBox" hidden>
     <p class="advt">Ajustes avanzados (se aplican al cambiar de canal)</p>
-    <div class="advrow"><span>Colchón de directos</span>
+    <div class="advrow"><span>Colchón de directos (entrada ajustada y recuperación de cortes)</span>
       <div class="seg" id="segPre">
         <button class="btn sm" type="button" data-pre="3">3 s</button>
         <button class="btn sm" type="button" data-pre="6">6 s</button>
@@ -575,6 +575,11 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
       </div></div>
     <div class="advrow"><span>Acercarse al directo yendo un poco más rápido</span><button class="btn sm" type="button" id="btnSoft"></button></div>
     <div class="advrow"><span>Perseguir el directo con saltos (provoca cortes)</span><button class="btn sm" type="button" id="btnChase"></button></div>
+    <div class="advrow" id="rowEntry" hidden><span>Entrada a los directos (nativo): rápida = con retraso pero sin esperar</span>
+      <div class="seg" id="segEntry">
+        <button class="btn sm" type="button" data-entry="fast">Rápida</button>
+        <button class="btn sm" type="button" data-entry="fit">Ajustada al colchón</button>
+      </div></div>
     <div class="advrow" id="rowEngine" hidden><span>Reproductor nativo (ExoPlayer)</span><button class="btn sm" type="button" id="btnEngine"></button></div>
     <div class="advrow"><span>Panel de diagnóstico sobre la imagen</span><button class="btn sm" type="button" id="btnDiag"></button></div>
   </div>
@@ -2944,7 +2949,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.16.0";
+const VERSION = "0.16.1";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3293,7 +3298,7 @@ async function activateList(id, { refresh = true } = {}) {
     await tick();
     const b = buildPlaylist(text, l.url || "");
     if (b) {
-      applyBuilt(b);
+      applyBuilt(b, { keep: !booted && enterSeq > 0 }); // si ya has entrado en una sección mientras arrancaba, no se te cambia de sección
       l.count = b.count;
       saveLists();
       setMsg(summary(b));
@@ -3528,6 +3533,7 @@ const cfg = {
   chase: store.get("zapeo.chase", "0") === "1", // la librería salta hacia delante para acercarse al directo (provoca cortes: apagado por defecto)
   soft: store.get("zapeo.soft", "0") === "1", // acercarse al directo yendo algo más rápido (apagado por defecto: se prefiere velocidad normal y algo de retraso)
   diag: store.get("zapeo.diag", "0") === "1",
+  fit: store.get("zapeo.entry", "fast") === "fit", // entrada ajustada al colchón (recorta la ráfaga: entra más tarde pero más cerca del directo); por defecto, entrada rápida
   exo: store.get("zapeo.engine", "exo") !== "web", // reproductor nativo de Android (ExoPlayer) cuando está disponible
 };
 const reLive = () => Math.max(2, Math.round(cfg.pre * 0.66)); // colchón al recuperarse de un corte
@@ -3539,6 +3545,8 @@ function renderAdv() {
   $("#btnSoft").classList.toggle("on", cfg.soft);
   $("#btnDiag").textContent = cfg.diag ? "Sí" : "No";
   $("#btnDiag").classList.toggle("on", cfg.diag);
+  $$("#segEntry [data-entry]").forEach((b) => b.classList.toggle("on", (b.dataset.entry === "fit") === cfg.fit));
+  $("#rowEntry").hidden = !nv.avail || !cfg.exo;
   $("#rowEngine").hidden = !nv.avail;
   $("#btnEngine").textContent = cfg.exo ? "Sí" : "No";
   $("#btnEngine").classList.toggle("on", cfg.exo);
@@ -3547,6 +3555,7 @@ $("#advBox").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   if (b.dataset.pre) { cfg.pre = +b.dataset.pre; store.set("zapeo.pre", String(cfg.pre)); }
+  else if (b.dataset.entry) { cfg.fit = b.dataset.entry === "fit"; store.set("zapeo.entry", cfg.fit ? "fit" : "fast"); }
   else if (b.id === "btnChase") { cfg.chase = !cfg.chase; store.set("zapeo.chase", cfg.chase ? "1" : "0"); }
   else if (b.id === "btnSoft") { cfg.soft = !cfg.soft; store.set("zapeo.soft", cfg.soft ? "1" : "0"); }
   else if (b.id === "btnEngine") { cfg.exo = !cfg.exo; store.set("zapeo.engine", cfg.exo ? "exo" : "web"); }
@@ -3824,6 +3833,11 @@ function renderList() {
       const box = $("#chlist");
       box.classList.toggle("posters", state.tab !== "live" && !state.show && !!state.channels.length);
 
+      if (!state.channels.length && !booted && lists.items.length) {
+        state.view = [];
+        box.innerHTML = `<p class="hint">Cargando lista…</p>`;
+        return;
+      }
       if (!state.channels.length) {
         state.view = [];
         $("#chTitle").textContent = "Lista";
@@ -4510,11 +4524,11 @@ function runMethod() {
     s.cuDone = false; s.cuT0 = 0;
     nvOn(true);
     Object.assign(nv, { id: ++nv.seq, pos: 0, at: performance.now(), buf: 0, dur: s.live ? Infinity : NaN, st: "idle", playing: false, paused: true, wait: false, seeking: false, speed: 1, err: null, dropped: 0, rendered: 0, live: s.live });
-    ZP.load({ id: nv.id, url: u, ua: navigator.userAgent, live: s.live, preMs: s.live ? cfg.pre * 1000 : 0, hls: /\.m3u8/i.test(u), startMs: Math.round((s.resumeAt || 0) * 1000), muted: vel.muted })
+    ZP.load({ id: nv.id, url: u, ua: navigator.userAgent, live: s.live, preMs: s.live && cfg.fit ? cfg.pre * 1000 : 0, hls: /\.m3u8/i.test(u), startMs: Math.round((s.resumeAt || 0) * 1000), muted: vel.muted })
       .then(() => {
         if (my !== token || run !== s.run) return;
         syncNative(true);
-        if (s.live) holdUntilBuffered(Math.max(2, cfg.pre - 1), cfg.pre * 1000 + 4000, false);
+        if (s.live) { if (cfg.fit) holdUntilBuffered(Math.max(2, cfg.pre - 1), cfg.pre * 1000 + 4000, false); else holdUntilBuffered(1.5, 6000, false); }
         else video.play();
       })
       .catch((e) => fail("nativo: " + ((e && e.message) || e)));
@@ -5461,7 +5475,9 @@ window.addEventListener("load", () => {
 });
 
 /* ---------- Arranque ---------- */
+let booted = false; // false mientras arranca y se prepara la lista guardada
 (async function init() {
+  focusEl($('#homeTiles .tile[data-go="live"]')); // el inicio ya está a la vista desde el primer fotograma; la lista se prepara por detrás
   loadLists();
   await migrateOld();
   applyAdv();
@@ -5472,7 +5488,9 @@ window.addEventListener("load", () => {
   } else {
     renderAll();
   }
-  showHome();
+  booted = true;
+  if (!state.channels.length) renderAll(); // sin lista: se pinta el aviso de «Aún no hay lista»
+  else if (!$("#home").hidden) renderHome(); // si el usuario ya ha entrado en otra pantalla, no se la quita
   if (!lists.items.length && MB) openReceive(); // sin lista: directamente la pantalla con el código
 })();
 </script>
