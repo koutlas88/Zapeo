@@ -51,9 +51,11 @@ body {
   color: var(--fg);
   font: 15px/1.4 var(--font);
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: 1fr;
   overflow: hidden;
 }
+/* Sin cabecera ni barra de secciones: se cambia de sección desde el inicio */
+header.top, nav.tabs { display: none !important; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -197,17 +199,32 @@ main {
 .star.on { color: var(--accent); }
 .more { width: 100%; margin-top: 6px; padding: 10px; border-radius: 6px; border: 1px dashed var(--line); background: none; color: var(--muted); }
 /* Películas y series: carátulas en cuadrícula, sin reproductor pequeño */
-body.pmode { grid-template-rows: auto 1fr; }
-body.pmode .top { display: none; }
-#main.tab-movie, #main.tab-series { grid-template-columns: 210px minmax(0, 1fr); }
+#main.tab-movie, #main.tab-series { grid-template-columns: minmax(0, 1fr); }
 #main.tab-movie .stage, #main.tab-series .stage {
   position: fixed; left: -300vw; top: 0; width: 640px; height: 360px; padding: 0; border: 0; overflow: visible;
 }
-#main.tab-movie .panel:nth-child(2), #main.tab-series .panel:nth-child(2) {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 280px); grid-template-rows: auto minmax(0, 1fr); border-right: 0;
+/* Categorías: se esconden y se abren con «Grupos» */
+#main.tab-movie .panel:nth-child(1), #main.tab-series .panel:nth-child(1) { display: none; }
+body.pgrp #main.tab-movie .panel:nth-child(1), body.pgrp #main.tab-series .panel:nth-child(1) {
+  display: flex; position: fixed; left: 0; top: 0; bottom: 0; width: min(22rem, 80vw); z-index: 30;
+  background: var(--panel); border-right: 1px solid var(--line); box-shadow: 0 0 60px rgba(0,0,0,.7);
 }
-#main.tab-movie .panel:nth-child(2) .scroll, #main.tab-series .panel:nth-child(2) .scroll { grid-column: 1 / -1; }
-#main.tab-movie .searchwrap, #main.tab-series .searchwrap { padding: 8px 14px 0 0; }
+#main.tab-movie .panel:nth-child(2), #main.tab-series .panel:nth-child(2) {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-areas: "title chips" "bar bar" "find find" "list list"; border-right: 0;
+}
+#main.tab-movie .panel:nth-child(2) .scroll, #main.tab-series .panel:nth-child(2) .scroll { grid-area: list; }
+#main.tab-movie #chTitle, #main.tab-series #chTitle { grid-area: title; font-size: 30px; text-transform: none; letter-spacing: 0; color: var(--fg); padding: 14px 16px 6px; }
+#main.tab-movie .searchwrap, #main.tab-series .searchwrap { grid-area: find; padding: 0 14px 8px 12px; display: none; }
+body.psearch #main.tab-movie .searchwrap, body.psearch #main.tab-series .searchwrap { display: block; }
+#pchips, #pbar { display: none; }
+body.pmode #pchips { display: flex; grid-area: chips; gap: 10px; align-items: center; padding: 0 16px; }
+body.pmode #pbar { display: flex; grid-area: bar; gap: 8px; padding: 6px 14px 10px 12px; flex-wrap: wrap; }
+.chip { padding: 5px 14px; border-radius: 999px; background: rgba(var(--accent-rgb), .22); border: 1px solid var(--accent); font-size: 13px; white-space: nowrap; }
+#pbar .btn { padding: 9px 18px; font-size: 15px; justify-content: center; }
+#pbar .btn:focus { outline: none; border-color: var(--accent); background: rgba(var(--accent-rgb), .3); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .45); }
+#sortBox { display: flex; flex-direction: column; gap: 8px; }
+#sortBox .btn { justify-content: flex-start; }
 #chlist.posters {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(7.4rem, 1fr)); gap: 16px 14px;
   align-content: start; padding: 8px 14px 18px 10px;
@@ -467,6 +484,14 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
 
   <section class="panel" aria-label="Lista">
     <h2 id="chTitle">Canales</h2>
+    <div id="pchips"><span class="chip" id="chipSort"></span><span class="chip" id="chipTotal"></span></div>
+    <div id="pbar" role="toolbar" aria-label="Opciones">
+      <button class="btn" type="button" id="pGrp">☰ Grupos</button>
+      <button class="btn" type="button" id="pSort">⇅ Orden</button>
+      <button class="btn" type="button" id="pFind">⌕ Buscar</button>
+      <button class="btn" type="button" id="pRef">↻ Actualizar</button>
+      <button class="btn" type="button" id="pHome">⌂ Inicio</button>
+    </div>
     <div class="searchwrap">
       <input type="text" id="search" placeholder="Buscar ( / )" autocomplete="off" spellcheck="false" aria-label="Buscar">
     </div>
@@ -568,6 +593,17 @@ dialog .actions.wrap { flex-wrap: wrap; justify-content: flex-start; }
     <div class="eseas" id="eSeas"></div>
   </div>
 </section>
+
+<dialog id="sortDlg">
+  <h3>Ordenar por</h3>
+  <div id="sortBox">
+    <button class="btn" type="button" data-sort="list">Orden de la lista</button>
+    <button class="btn" type="button" data-sort="az">A → Z</button>
+    <button class="btn" type="button" data-sort="za">Z → A</button>
+    <button class="btn" type="button" data-sort="rev">Invertido (los últimos primero)</button>
+  </div>
+  <div class="actions"><button class="btn" type="button" id="sortCancel">Cancelar</button></div>
+</dialog>
 
 <dialog id="themeDlg">
   <h3>Tema</h3>
@@ -2988,7 +3024,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.17.0";
+const VERSION = "0.18.0";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -3163,6 +3199,7 @@ const cache = (() => {
   };
 })();
 
+const SORT_NAMES = { list: "Lista", az: "A–Z", za: "Z–A", rev: "Invertido" };
 const PAGE = 200;
 const pageSize = () => (state.tab === "live" ? PAGE : 48); // las carátulas pesan más
 const TABS = ["live", "movie", "series"];
@@ -3201,6 +3238,7 @@ function setMsg(text, isErr) {
   const el = $("#msg");
   el.textContent = text || "";
   el.className = isErr ? "err" : "";
+  if (isErr && text) toast(text); // la cabecera ya no se ve: los errores salen como aviso
 }
 
 /* ---------- Foco y desplazamiento ---------- */
@@ -3572,6 +3610,7 @@ const cfg = {
   chase: store.get("zapeo.chase", "0") === "1", // la librería salta hacia delante para acercarse al directo (provoca cortes: apagado por defecto)
   soft: store.get("zapeo.soft", "0") === "1", // acercarse al directo yendo algo más rápido (apagado por defecto: se prefiere velocidad normal y algo de retraso)
   diag: store.get("zapeo.diag", "0") === "1",
+  sort: ["list", "az", "za", "rev"].includes(store.get("zapeo.sort", "list")) ? store.get("zapeo.sort", "list") : "list", // orden de películas y series
   fit: store.get("zapeo.entry", "fast") === "fit", // entrada ajustada al colchón (recorta la ráfaga: entra más tarde pero más cerca del directo); por defecto, entrada rápida
   exo: store.get("zapeo.engine", "exo") !== "web", // reproductor nativo de Android (ExoPlayer) cuando está disponible
 };
@@ -3769,6 +3808,11 @@ function filtered() {
   else if (g === "__fav") list = list.filter((x) => state.favs.has(favKey(x)));
   else if (g !== "__all") list = list.filter((x) => x.group === g);
   if (state.query) { const q = norm(state.query); list = list.filter((x) => nm(x).includes(q)); }
+  if (state.tab !== "live" && g !== "__cont" && cfg.sort !== "list") {
+    list = list.slice();
+    if (cfg.sort === "rev") list.reverse();
+    else { list.sort((a, b) => (nm(a) < nm(b) ? -1 : nm(a) > nm(b) ? 1 : 0)); if (cfg.sort === "za") list.reverse(); }
+  }
   return list;
 }
 
@@ -3913,7 +3957,9 @@ function renderList() {
       const list = (state.view = filtered());
       const g = state.group[state.tab];
       const label = g === "__all" ? TAB_NAMES[state.tab] : g === "__fav" ? "Favoritos" : g === "__cont" ? "Continuar viendo" : g;
-      $("#chTitle").textContent = `${label} · ${list.length}`;
+      $("#chTitle").textContent = state.tab === "live" ? `${label} · ${list.length}` : label;
+      $("#chipSort").textContent = "Orden: " + SORT_NAMES[cfg.sort];
+      $("#chipTotal").textContent = "Total: " + list.length;
 
       if (!list.length) {
         box.innerHTML = `<p class="hint">${
@@ -5172,7 +5218,7 @@ const srch = $("#search");
 function srchGuard(on) { if (isNative()) { srch.readOnly = on; srch.inputMode = on ? "none" : "text"; } }
 function srchOpen() { srch.blur(); srchGuard(false); srch.focus(); }
 srchGuard(true);
-srch.addEventListener("blur", () => srchGuard(true));
+srch.addEventListener("blur", () => { srchGuard(true); if (!srch.value) document.body.classList.remove("psearch"); });
 srch.addEventListener("pointerdown", () => { if (srch.readOnly) { srchGuard(false); } });
 $("#search").addEventListener("input", (e) => {
   state.query = e.target.value;
@@ -5189,6 +5235,7 @@ $("#grplist").addEventListener("click", (e) => {
   state.shown = pageSize();
   $$("#grplist .grp").forEach((x) => x.classList.toggle("active", x === b));
   renderList();
+  if (state.tab !== "live") { closePgrp(); focusChannelList(); }
 });
 
 $("#chlist").addEventListener("click", async (e) => {
@@ -5246,8 +5293,7 @@ function gridMove(t, key) {
     if (score < bestScore) { bestScore = score; best = el; }
   }
   if (best) focusEl(best);
-  else if (key === "ArrowUp") $("#search").focus();
-  else if (key === "ArrowLeft") focusGroup();
+  else if (key === "ArrowUp") focusPbar(true);
 }
 function focusables(container) { return $$(container + " .grp, " + container + " .ch, " + container + " .more"); }
 function move(list, from, delta) {
@@ -5260,9 +5306,38 @@ function focusChannelList() {
 function focusGroup() {
   focusEl(document.querySelector("#grplist .grp.active") || document.querySelector("#grplist .grp"));
 }
-function focusTab() {
-  focusEl(document.querySelector(".tab.active") || document.querySelector(".tab"));
+// Ya no hay barra de secciones: arriba del todo queda la barra de herramientas (películas y series)
+function focusTab() { if (state.tab !== "live") focusPbar(); }
+let pbarLast = null;
+function focusPbar(allowSearch) {
+  if (allowSearch && document.body.classList.contains("psearch")) { focusEl($("#search")); return; }
+  focusEl(pbarLast && $("#pbar").contains(pbarLast) ? pbarLast : $("#pGrp"));
 }
+$("#pbar").addEventListener("focusin", (e) => { const b = e.target.closest(".btn"); if (b) pbarLast = b; });
+function openPgrp() { document.body.classList.add("pgrp"); renderGroups(); focusGroup(); }
+function closePgrp(toBar) { document.body.classList.remove("pgrp"); if (toBar) focusPbar(); }
+function openFind() { document.body.classList.add("psearch"); if (isNative()) srchOpen(); else srch.focus(); }
+function openSort() {
+  $$("#sortBox [data-sort]").forEach((b) => b.classList.toggle("on", b.dataset.sort === cfg.sort));
+  $("#sortDlg").showModal();
+  focusEl($(`#sortBox [data-sort="${cfg.sort}"]`));
+}
+$("#pGrp").addEventListener("click", openPgrp);
+$("#pSort").addEventListener("click", openSort);
+$("#pFind").addEventListener("click", openFind);
+$("#pRef").addEventListener("click", reloadNow);
+$("#pHome").addEventListener("click", () => showHome());
+$("#sortCancel").addEventListener("click", () => $("#sortDlg").close());
+$("#sortDlg").addEventListener("close", () => { if (state.tab !== "live" && !ovOpen() && !isFs()) focusEl($("#pSort")); });
+$("#sortBox").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-sort]");
+  if (!b) return;
+  cfg.sort = b.dataset.sort;
+  store.set("zapeo.sort", cfg.sort);
+  state.shown = pageSize();
+  renderList();
+  $("#sortDlg").close();
+});
 
 // Navegación con flechas dentro de un diálogo: se salta al elemento más cercano en esa dirección.
 function dialogNav(e, root) {
@@ -5382,13 +5457,14 @@ document.addEventListener("keydown", (e) => {
       if (t.readOnly && key === "Enter") { e.preventDefault(); srchOpen(); }
       else if (key === "ArrowDown" || key === "Enter") { e.preventDefault(); focusChannelList(); }
       else if (key === "ArrowUp") { e.preventDefault(); focusTab(); }
-      else if (t.readOnly && key === "ArrowLeft") { e.preventDefault(); focusGroup(); }
+      else if (t.readOnly && key === "ArrowLeft" && state.tab === "live") { e.preventDefault(); focusGroup(); }
+      else if (t.readOnly && (key === "Escape" || key === "Backspace")) { e.preventDefault(); state.tab === "live" ? focusGroup() : focusPbar(); }
     }
     if (key === "Escape") t.blur();
     return;
   }
 
-  if (key === "/") { e.preventDefault(); $("#search").focus(); return; }
+  if (key === "/") { e.preventDefault(); if (state.tab !== "live") document.body.classList.add("psearch"); $("#search").focus(); return; }
   if (/^[1-3]$/.test(key)) { switchTab(TABS[+key - 1]); return; }
   if (key.toLowerCase() === "p") { toggleFs(); return; }
   if (key.toLowerCase() === "m") { video.muted = !video.muted; return; }
@@ -5404,6 +5480,7 @@ document.addEventListener("keydown", (e) => {
   const inTabs = cl && cl.contains("tab");
   const inGroups = cl && cl.contains("grp");
   const inChannels = cl && (cl.contains("ch") || cl.contains("more"));
+  const inPbar = !!(t.closest && t.closest("#pbar"));
 
   if (key.toLowerCase() === "f" && inChannels && t.dataset.i !== undefined && cl.contains("ch")) {
     const item = state.view[+t.dataset.i];
@@ -5412,6 +5489,16 @@ document.addEventListener("keydown", (e) => {
   }
 
   if ((inTop || inTabs) && (key === "Escape" || key === "Backspace")) { e.preventDefault(); backMain(); return; }
+
+  if (inPbar) {
+    if (key === "ArrowRight" || key === "ArrowLeft") { e.preventDefault(); move($$("#pbar .btn"), t, key === "ArrowRight" ? 1 : -1); }
+    else if (key === "ArrowDown") { e.preventDefault(); document.body.classList.contains("psearch") ? focusEl($("#search")) : focusChannelList(); }
+    else if (key === "ArrowUp") e.preventDefault();
+    else if (key === "Escape" || key === "Backspace") { e.preventDefault(); showHome(); }
+    return;
+  }
+
+  if (inGroups && state.tab !== "live" && ["ArrowRight", "ArrowLeft", "Escape", "Backspace"].includes(key)) { e.preventDefault(); closePgrp(true); return; }
 
   if (inTop) {
     const btns = $$("#top button");
@@ -5563,6 +5650,7 @@ function renderSettings() {
 let enterSeq = 0;
 function enterTab(tab, work) {
   const seq = ++enterSeq;
+  document.body.classList.remove("pgrp", "psearch");
   const box = $("#chlist");
   $("#main").className = "tab-" + tab;
   document.body.classList.toggle("pmode", tab !== "live");
@@ -5625,12 +5713,12 @@ setInterval(() => { if (!$("#home").hidden) $("#homeClock").textContent = new Da
 
 // Atrás en la pantalla principal: sube un nivel cada vez y acaba en el inicio.
 function backMain() {
-  const a = document.activeElement, cl = a && a.classList;
+  const a = document.activeElement, cl = a && a.classList, pm = state.tab !== "live";
   if (state.show) closeShow();
-  else if (cl && (cl.contains("ch") || cl.contains("more"))) focusGroup();
-  else if (cl && cl.contains("grp")) focusTab();
+  else if (pm && document.body.classList.contains("pgrp") && cl && cl.contains("grp")) closePgrp(true);
+  else if (!pm && cl && (cl.contains("ch") || cl.contains("more"))) focusGroup();
   else if (a && (a.id === "btnFs" || a.id === "btnFav")) focusChannelList();
-  else if (a && a.id === "search") focusTab();
+  else if (!pm && a && a.id === "search") focusGroup();
   else showHome();
 }
 
