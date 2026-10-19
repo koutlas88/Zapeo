@@ -38,7 +38,7 @@ build_number = os.environ.get("BUILD_NUMBER", "1")
 gradle = root / "app" / "build.gradle"
 g = gradle.read_text(encoding="utf-8")
 g = re.sub(r"versionCode\s+\d+", "versionCode " + build_number, g, count=1)
-g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.16.' + build_number + '"', g, count=1)
+g = re.sub(r'versionName\s+"[^"]*"', 'versionName "0.17.' + build_number + '"', g, count=1)
 
 # 6) Firmar SIEMPRE con la misma llave (tv/debug.keystore), para poder actualizar sin desinstalar.
 #    Se declara en el propio proyecto: así no depende de dónde busque Gradle la llave en el servidor.
