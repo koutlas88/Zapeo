@@ -195,12 +195,14 @@ public class ZapeoPlayerPlugin extends Plugin {
                 player.addListener(new Player.Listener() {
                     @Override
                     public void onPlaybackStateChanged(int state) {
+                        awake(state == Player.STATE_BUFFERING || (state == Player.STATE_READY && player != null && player.getPlayWhenReady()));
                         emitState(null);
                     }
 
                     @Override
                     public void onIsPlayingChanged(boolean isPlaying) {
                         if (isPlaying) everPlayed = true;
+                        if (isPlaying) awake(true);
                         emitState(null);
                     }
 
@@ -357,7 +359,24 @@ public class ZapeoPlayerPlugin extends Plugin {
         });
     }
 
+    // Evita que la tele active el salvapantallas mientras se reproduce
+    private void awake(final boolean on) {
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    if (surface != null) surface.setKeepScreenOn(on);
+                    android.view.Window w = getActivity().getWindow();
+                    if (on) w.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    else w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
     private void releasePlayer() {
+        awake(false);
         ui.removeCallbacks(tickTask);
         ticking = false;
         if (player != null) {
