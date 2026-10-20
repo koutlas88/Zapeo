@@ -3024,7 +3024,7 @@ var qrcode = function() {
 <script>
 "use strict";
 
-const VERSION = "0.18.0";
+const VERSION = "0.18.1";
 
 /* ---------- Parser M3U y clasificación ---------- */
 // PARSER_START
@@ -4356,6 +4356,18 @@ function epsKey(e) {
 
 /* ---------- Reproducción ---------- */
 const vel = $("#video");
+// Pantalla encendida mientras se reproduce (navegador/Windows; en Android lo hace el reproductor nativo)
+let wl = null;
+async function wlSet(on) {
+  try {
+    if (on && !wl && navigator.wakeLock) { wl = await navigator.wakeLock.request("screen"); wl.addEventListener("release", () => { wl = null; }); }
+    else if (!on && wl) { await wl.release(); wl = null; }
+  } catch (e) { wl = null; }
+}
+vel.addEventListener("playing", () => wlSet(true));
+vel.addEventListener("pause", () => wlSet(false));
+vel.addEventListener("ended", () => wlSet(false));
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !vel.paused) wlSet(true); });
 
 /* ---------- Vídeo: elemento web o reproductor nativo (ExoPlayer) ----------
    El resto de la app usa «video» como si fuera un <video>. Si el reproductor nativo está activo, las
